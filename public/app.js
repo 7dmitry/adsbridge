@@ -8,7 +8,7 @@ if (tg) {
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
-const API = 'http://localhost:3000/api';
+const API = 'https://adsway.up.railway.app';
 
 async function apiFetch(path, options = {}) {
   try {
