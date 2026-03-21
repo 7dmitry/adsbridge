@@ -33,7 +33,8 @@ DB_PASSWORD  = os.getenv("DB_PASSWORD")
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp  = Dispatcher(storage=MemoryStorage())
 
-db = psycopg2.connect(database=DB_NAME, user=DB_USER, password=DB_PASSWORD)
+DATABASE_URL = os.getenv("DATABASE_URL")
+db = psycopg2.connect(DATABASE_URL, sslmode='require')
 c = db.cursor()
 db.autocommit = True
 logger.info("БД подключена успешно")
