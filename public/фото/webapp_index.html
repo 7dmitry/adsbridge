@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>AdHub — Каталог каналов</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & Variables ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0a0a0f;
+  --bg2:       #111118;
+  --bg3:       #18181f;
+  --card:      #14141c;
+  --card2:     #1c1c26;
+  --border:    rgba(255,255,255,0.07);
+  --border2:   rgba(255,255,255,0.12);
+  --accent:    #6c63ff;
+  --accent2:   #a78bfa;
+  --accent3:   #38bdf8;
+  --green:     #34d399;
+  --orange:    #fb923c;
+  --red:       #f87171;
+  --text:      #f0f0f8;
+  --text2:     #9898b0;
+  --text3:     #5a5a72;
+  --glow:      0 0 40px rgba(108,99,255,0.15);
+  --glow2:     0 0 20px rgba(108,99,255,0.25);
+  --r:         14px;
+  --r2:        10px;
+  --nav-h:     68px;
+  --header-h:  60px;
+}
+
+html { font-size: 16px; }
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100dvh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+
+/* ── Noise overlay ─────────────────────────────────────────────────────────── */
+body::before {
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  opacity: .4;
+}
+
+/* ── Layout ────────────────────────────────────────────────────────────────── */
+.app { display:flex; flex-direction:column; min-height:100dvh; position:relative; z-index:1; }
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+.header {
+  position: sticky; top: 0; z-index: 100;
+  height: var(--header-h);
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 16px;
+  background: rgba(10,10,15,0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+}
+.header-logo {
+  display: flex; align-items: center; gap: 9px;
+}
+.logo-icon {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent3) 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; flex-shrink: 0;
+  box-shadow: var(--glow2);
+}
+.logo-text {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800; font-size: 20px;
+  background: linear-gradient(135deg, var(--text) 0%, var(--accent2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.header-btn {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text2); font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .2s;
+}
+.header-btn:hover { background: var(--card2); color: var(--text); border-color: var(--border2); }
+.header-badge {
+  background: var(--accent); color: white; font-size: 10px;
+  font-weight: 700; padding: 2px 6px; border-radius: 99px;
+}
+
+/* ── Main content ──────────────────────────────────────────────────────────── */
+.main {
+  flex: 1;
+  padding-bottom: calc(var(--nav-h) + 16px);
+  overflow-y: auto;
+}
+
+/* ── Pages ─────────────────────────────────────────────────────────────────── */
+.page { display: none; padding: 16px; }
+.page.active { display: block; animation: fadeUp .3s ease; }
+
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(10px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+/* ── Section title ─────────────────────────────────────────────────────────── */
+.section-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text3); margin-bottom: 12px; margin-top: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  PAGE: HOME                                                                */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+.hero {
+  border-radius: var(--r); overflow: hidden;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  padding: 24px 20px 20px;
+  position: relative; margin-bottom: 20px;
+  border: 1px solid var(--border);
+}
+.hero::before {
+  content:''; position:absolute; inset:0;
+  background: radial-gradient(ellipse at 80% 20%, rgba(108,99,255,.2) 0%, transparent 60%);
+  pointer-events: none;
+}
+.hero-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(108,99,255,.2); border: 1px solid rgba(108,99,255,.35);
+  color: var(--accent2); font-size: 11px; font-weight: 600;
+  padding: 3px 10px; border-radius: 99px; margin-bottom: 12px;
+}
+.hero h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: 26px; font-weight: 800; line-height: 1.15;
+  margin-bottom: 8px;
+}
+.hero h1 span { color: var(--accent2); }
+.hero p { font-size: 13px; color: var(--text2); line-height: 1.6; margin-bottom: 18px; }
+.hero-btns { display: flex; gap: 10px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 10px 18px; border-radius: var(--r2);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  border: none; transition: all .2s; text-decoration: none;
+  font-family: 'Inter', sans-serif;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%);
+  color: white; box-shadow: 0 4px 15px rgba(108,99,255,.4);
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(108,99,255,.5); }
+.btn-secondary {
+  background: rgba(255,255,255,.07); color: var(--text);
+  border: 1px solid var(--border2);
+}
+.btn-secondary:hover { background: rgba(255,255,255,.12); }
+
+/* Stats row */
+.stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+.stat-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r2); padding: 14px 12px; text-align: center;
+  transition: border-color .2s;
+}
+.stat-card:hover { border-color: var(--border2); }
+.stat-num {
+  font-family: 'Syne', sans-serif;
+  font-size: 22px; font-weight: 800;
+  background: linear-gradient(135deg, var(--text) 0%, var(--accent2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.stat-label { font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+/* Category pills */
+.cats-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 20px; scrollbar-width: none; }
+.cats-scroll::-webkit-scrollbar { display: none; }
+.cat-pill {
+  display: flex; align-items: center; gap: 5px;
+  padding: 7px 14px; border-radius: 99px;
+  background: var(--card); border: 1px solid var(--border);
+  font-size: 12px; font-weight: 500; white-space: nowrap;
+  cursor: pointer; transition: all .2s; color: var(--text2);
+}
+.cat-pill:hover, .cat-pill.active {
+  background: var(--accent); border-color: var(--accent);
+  color: white; box-shadow: 0 0 12px rgba(108,99,255,.4);
+}
+
+/* Top channels */
+.channel-list { display: flex; flex-direction: column; gap: 10px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  CHANNEL CARD                                                              */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+.ch-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 14px;
+  transition: all .22s; cursor: pointer;
+  position: relative; overflow: hidden;
+}
+.ch-card::before {
+  content:''; position:absolute; inset:0;
+  background: linear-gradient(135deg, transparent 60%, rgba(108,99,255,.04));
+  pointer-events: none;
+}
+.ch-card:hover { border-color: var(--border2); transform: translateY(-1px); box-shadow: var(--glow); }
+
+.ch-top { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+.ch-avatar {
+  width: 46px; height: 46px; border-radius: 13px;
+  background: linear-gradient(135deg, var(--bg3), var(--card2));
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink: 0;
+}
+.ch-info { flex: 1; min-width: 0; }
+.ch-name-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.ch-name {
+  font-family: 'Syne', sans-serif;
+  font-size: 15px; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.badge-verified {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent3), var(--accent));
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 9px; flex-shrink: 0;
+}
+.ch-username { font-size: 12px; color: var(--text3); margin-bottom: 6px; }
+.ch-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+.tag {
+  padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 600;
+  background: rgba(108,99,255,.15); color: var(--accent2);
+  border: 1px solid rgba(108,99,255,.2);
+}
+.tag.green { background: rgba(52,211,153,.1); color: var(--green); border-color: rgba(52,211,153,.2); }
+.tag.orange { background: rgba(251,146,60,.1); color: var(--orange); border-color: rgba(251,146,60,.2); }
+
+.ch-desc {
+  font-size: 12.5px; color: var(--text2); line-height: 1.55;
+  margin-bottom: 12px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+.ch-metrics { display: flex; gap: 14px; margin-bottom: 12px; }
+.metric { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text2); }
+.metric span:first-child { font-size: 14px; }
+.metric strong { color: var(--text); font-weight: 600; }
+
+.ch-bottom { display: flex; align-items: center; gap: 8px; }
+.price-badge {
+  display: flex; align-items: center; gap: 5px;
+  background: rgba(52,211,153,.1); border: 1px solid rgba(52,211,153,.2);
+  color: var(--green); font-size: 12px; font-weight: 700;
+  padding: 5px 10px; border-radius: var(--r2); flex-shrink: 0;
+}
+.ch-action-btns { display: flex; gap: 7px; margin-left: auto; }
+.ch-btn {
+  padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  cursor: pointer; border: none; transition: all .2s; font-family: 'Inter', sans-serif;
+}
+.ch-btn-primary {
+  background: var(--accent); color: white;
+  box-shadow: 0 2px 8px rgba(108,99,255,.35);
+}
+.ch-btn-primary:hover { background: #7c73ff; transform: translateY(-1px); }
+.ch-btn-ghost {
+  background: var(--bg3); color: var(--text2);
+  border: 1px solid var(--border);
+}
+.ch-btn-ghost:hover { background: var(--card2); color: var(--text); border-color: var(--border2); }
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  PAGE: SEARCH                                                              */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+.search-box {
+  position: relative; margin-bottom: 14px;
+}
+.search-input {
+  width: 100%; padding: 12px 16px 12px 42px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); color: var(--text); font-size: 14px;
+  font-family: 'Inter', sans-serif; transition: border-color .2s; outline: none;
+}
+.search-input::placeholder { color: var(--text3); }
+.search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(108,99,255,.15); }
+.search-icon {
+  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  color: var(--text3); font-size: 16px; pointer-events: none;
+}
+
+.filter-row { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; }
+.filter-row::-webkit-scrollbar { display: none; }
+.filter-chip {
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px 12px; border-radius: 99px;
+  background: var(--card); border: 1px solid var(--border);
+  font-size: 12px; font-weight: 500; white-space: nowrap;
+  cursor: pointer; transition: all .2s; color: var(--text2);
+  font-family: 'Inter', sans-serif;
+}
+.filter-chip:hover { border-color: var(--border2); color: var(--text); }
+.filter-chip.active { background: rgba(108,99,255,.15); border-color: var(--accent); color: var(--accent2); }
+
+/* Filter panel */
+.filter-panel {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 16px; margin-bottom: 16px;
+  display: none;
+}
+.filter-panel.open { display: block; animation: fadeUp .2s ease; }
+.filter-group { margin-bottom: 14px; }
+.filter-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px; }
+.filter-cats { display: flex; gap: 6px; flex-wrap: wrap; }
+.fcat {
+  padding: 5px 11px; border-radius: 99px; font-size: 11px; font-weight: 500;
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text2);
+  cursor: pointer; transition: all .15s;
+}
+.fcat.active { background: rgba(108,99,255,.2); border-color: var(--accent); color: var(--accent2); }
+
+.range-row { display: flex; gap: 10px; }
+.range-input {
+  flex: 1; padding: 8px 12px; background: var(--bg3);
+  border: 1px solid var(--border); border-radius: var(--r2);
+  color: var(--text); font-size: 13px; font-family: 'Inter', sans-serif; outline: none;
+}
+.range-input:focus { border-color: var(--accent); }
+
+.search-results-info {
+  font-size: 12px; color: var(--text3); margin-bottom: 12px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  PAGE: DONATE                                                              */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+.donate-hero {
+  text-align: center; padding: 30px 20px 24px;
+  background: linear-gradient(135deg, #1a1a2e, #2d1b69);
+  border-radius: var(--r); border: 1px solid var(--border);
+  margin-bottom: 20px; position: relative; overflow: hidden;
+}
+.donate-hero::before {
+  content: ''; position: absolute; width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(108,99,255,.3), transparent);
+  top: -50px; right: -50px; border-radius: 50%; pointer-events: none;
+}
+.donate-emoji { font-size: 52px; margin-bottom: 12px; display: block; }
+.donate-hero h2 { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+.donate-hero p { font-size: 13px; color: var(--text2); line-height: 1.6; }
+
+.perks { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.perk-item {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r2); padding: 12px 14px;
+}
+.perk-icon {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+.perk-icon.purple { background: rgba(108,99,255,.2); }
+.perk-icon.blue   { background: rgba(56,189,248,.15); }
+.perk-icon.green  { background: rgba(52,211,153,.15); }
+.perk-icon.orange { background: rgba(251,146,60,.15); }
+.perk-text strong { font-size: 13px; font-weight: 600; display: block; margin-bottom: 2px; }
+.perk-text span   { font-size: 12px; color: var(--text2); }
+
+.amounts-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.amount-btn {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r2); padding: 14px 10px; text-align: center;
+  cursor: pointer; transition: all .2s;
+}
+.amount-btn:hover { border-color: var(--accent); box-shadow: 0 0 12px rgba(108,99,255,.2); }
+.amount-btn.selected { background: rgba(108,99,255,.15); border-color: var(--accent); }
+.amount-btn .stars { font-size: 20px; margin-bottom: 4px; }
+.amount-btn .amount-val { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; color: var(--accent2); }
+.amount-btn .amount-rub { font-size: 11px; color: var(--text3); }
+.custom-amount { display: flex; gap: 10px; margin-bottom: 20px; }
+.custom-input {
+  flex: 1; padding: 12px 16px; background: var(--card);
+  border: 1px solid var(--border); border-radius: var(--r2);
+  color: var(--text); font-size: 14px; font-family: 'Inter', sans-serif; outline: none;
+}
+.custom-input:focus { border-color: var(--accent); }
+
+.donors-list { display: flex; flex-direction: column; gap: 8px; }
+.donor-item {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r2); padding: 10px 14px;
+}
+.donor-rank { font-size: 18px; width: 26px; text-align: center; flex-shrink: 0; }
+.donor-info { flex: 1; }
+.donor-name { font-size: 13px; font-weight: 600; }
+.donor-total { font-size: 11px; color: var(--text3); }
+.donor-stars { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; color: var(--accent2); }
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  PAGE: SETTINGS                                                            */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+.settings-section { margin-bottom: 20px; }
+.setting-item {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--card); border: 1px solid var(--border);
+  padding: 14px; cursor: pointer; transition: background .15s;
+}
+.setting-item:first-child { border-radius: var(--r) var(--r) 0 0; }
+.setting-item:last-child  { border-radius: 0 0 var(--r) var(--r); border-bottom: 1px solid var(--border); }
+.setting-item:only-child  { border-radius: var(--r); }
+.setting-item:not(:last-child) { border-bottom: 1px solid var(--border); }
+.setting-item:hover { background: var(--card2); }
+
+.set-icon {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 17px;
+}
+.set-icon.purple { background: rgba(108,99,255,.2); }
+.set-icon.blue   { background: rgba(56,189,248,.15); }
+.set-icon.green  { background: rgba(52,211,153,.15); }
+.set-icon.orange { background: rgba(251,146,60,.15); }
+.set-icon.red    { background: rgba(248,113,113,.15); }
+
+.set-text { flex: 1; }
+.set-title { font-size: 14px; font-weight: 500; }
+.set-sub   { font-size: 12px; color: var(--text3); margin-top: 2px; }
+.set-right { display: flex; align-items: center; gap: 8px; color: var(--text3); font-size: 13px; }
+
+/* Toggle */
+.toggle {
+  width: 42px; height: 24px; border-radius: 99px; position: relative; cursor: pointer;
+  background: var(--bg3); border: 1px solid var(--border); transition: background .25s;
+  flex-shrink: 0;
+}
+.toggle.on { background: var(--accent); border-color: var(--accent); }
+.toggle::after {
+  content: ''; position: absolute; width: 18px; height: 18px; border-radius: 50%;
+  background: white; top: 2px; left: 2px; transition: transform .25s;
+  box-shadow: 0 1px 4px rgba(0,0,0,.3);
+}
+.toggle.on::after { transform: translateX(18px); }
+
+/* Profile card */
+.profile-card {
+  background: linear-gradient(135deg, var(--card), var(--card2));
+  border: 1px solid var(--border); border-radius: var(--r);
+  padding: 20px; display: flex; align-items: center; gap: 14px;
+  margin-bottom: 20px;
+}
+.profile-avatar {
+  width: 56px; height: 56px; border-radius: 16px;
+  background: linear-gradient(135deg, var(--accent), var(--accent3));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; flex-shrink: 0;
+}
+.profile-info .pname { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
+.profile-info .pid { font-size: 12px; color: var(--text3); margin-top: 3px; }
+.profile-info .ptags { display: flex; gap: 6px; margin-top: 8px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  BOTTOM NAV                                                                */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+.nav {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+  height: var(--nav-h);
+  background: rgba(17,17,24,0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-around;
+  padding: 0 8px;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.nav-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 8px 0; cursor: pointer; transition: all .2s; border-radius: var(--r2);
+  color: var(--text3); position: relative;
+}
+.nav-item:hover { color: var(--text2); }
+.nav-item.active { color: var(--accent2); }
+.nav-item.active .nav-icon { background: rgba(108,99,255,.2); }
+.nav-icon {
+  width: 38px; height: 28px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 19px; transition: all .2s;
+}
+.nav-label { font-size: 10px; font-weight: 500; }
+.nav-dot {
+  position: absolute; top: 4px; right: calc(50% - 22px);
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--red); border: 2px solid var(--bg2);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  MODAL                                                                     */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,.7); backdrop-filter: blur(4px);
+  display: none; align-items: flex-end;
+}
+.modal-overlay.open { display: flex; animation: fadeIn .2s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.modal {
+  width: 100%; background: var(--bg2);
+  border-radius: 20px 20px 0 0;
+  border: 1px solid var(--border); border-bottom: none;
+  padding: 8px 0 0; max-height: 90dvh; overflow-y: auto;
+  animation: slideUp .3s cubic-bezier(.16,1,.3,1);
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+.modal-handle {
+  width: 36px; height: 4px; border-radius: 99px;
+  background: var(--border2); margin: 0 auto 16px;
+}
+.modal-content { padding: 0 16px 32px; }
+.modal-title {
+  font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800;
+  margin-bottom: 16px;
+}
+
+.modal-ch-header { display: flex; gap: 14px; align-items: center; margin-bottom: 16px; }
+.modal-avatar {
+  width: 60px; height: 60px; border-radius: 16px;
+  background: var(--card2); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; font-size: 28px;
+}
+.modal-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.modal-stat {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r2); padding: 12px;
+}
+.modal-stat-val { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 2px; }
+.modal-stat-key { font-size: 11px; color: var(--text3); }
+.modal-desc { font-size: 13px; color: var(--text2); line-height: 1.65; margin-bottom: 16px; }
+.modal-btns { display: flex; flex-direction: column; gap: 10px; }
+.modal-btn {
+  width: 100%; padding: 14px; border-radius: var(--r2); font-size: 14px;
+  font-weight: 600; cursor: pointer; border: none; transition: all .2s;
+  font-family: 'Inter', sans-serif;
+}
+.modal-btn-primary { background: linear-gradient(135deg, var(--accent), #8b5cf6); color: white; box-shadow: 0 4px 15px rgba(108,99,255,.4); }
+.modal-btn-secondary { background: var(--card); color: var(--text2); border: 1px solid var(--border); }
+.modal-btn:hover { transform: translateY(-1px); }
+
+/* ── Toasts ────────────────────────────────────────────────────────────────── */
+.toast-container { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); z-index: 500; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast {
+  background: var(--card2); border: 1px solid var(--border2); color: var(--text);
+  padding: 10px 18px; border-radius: var(--r2); font-size: 13px; font-weight: 500;
+  box-shadow: 0 4px 20px rgba(0,0,0,.5); white-space: nowrap;
+  animation: toastIn .3s ease; pointer-events: none;
+}
+.toast.success { border-color: rgba(52,211,153,.4); color: var(--green); }
+.toast.error   { border-color: rgba(248,113,113,.4); color: var(--red); }
+@keyframes toastIn { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
+
+/* ── Empty state ───────────────────────────────────────────────────────────── */
+.empty-state { text-align: center; padding: 50px 20px; color: var(--text3); }
+.empty-icon { font-size: 48px; margin-bottom: 12px; opacity: .6; }
+.empty-title { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 700; color: var(--text2); margin-bottom: 6px; }
+.empty-sub { font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Header ─────────────────────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-logo">
+      <div class="logo-icon">📡</div>
+      <span class="logo-text">AdHub</span>
+    </div>
+    <div class="header-right">
+      <span class="header-badge" id="totalCount">6</span>
+      <button class="header-btn" onclick="showPage('search')" title="Поиск">🔍</button>
+      <button class="header-btn" id="favBtn" title="Избранное" onclick="toggleFavPage()">❤️</button>
+    </div>
+  </header>
+
+  <!-- ── Main ───────────────────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- ════════ HOME ════════ -->
+    <div class="page active" id="page-home">
+
+      <!-- Hero -->
+      <div class="hero">
+        <div class="hero-tag">✨ v1.0 — Каталог запущен</div>
+        <h1>Найди канал для <span>рекламы</span> и взаимопиара</h1>
+        <p>Каталог проверенных Telegram-каналов с реальной статистикой. Покупай рекламу или договаривайся о ВП напрямую.</p>
+        <div class="hero-btns">
+          <button class="btn btn-primary" onclick="showPage('search')">🔍 Найти канал</button>
+          <button class="btn btn-secondary" onclick="showPage('settings')">➕ Добавить</button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-num" id="statChannels">6</div>
+          <div class="stat-label">Каналов</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">328К</div>
+          <div class="stat-label">Подписчиков</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">ВП</div>
+          <div class="stat-label">Доступно</div>
+        </div>
+      </div>
+
+      <!-- Categories -->
+      <p class="section-title">Категории</p>
+      <div class="cats-scroll" id="homeCats">
+        <div class="cat-pill active" data-cat="all">⚡ Все</div>
+        <div class="cat-pill" data-cat="tech">🖥️ Технологии</div>
+        <div class="cat-pill" data-cat="business">💼 Бизнес</div>
+        <div class="cat-pill" data-cat="finance">📈 Финансы</div>
+        <div class="cat-pill" data-cat="games">🎮 Игры</div>
+        <div class="cat-pill" data-cat="art">🎨 Творчество</div>
+        <div class="cat-pill" data-cat="sport">🏋️ Спорт</div>
+        <div class="cat-pill" data-cat="news">📰 Новости</div>
+      </div>
+
+      <!-- Channel list -->
+      <p class="section-title">Топ каналов</p>
+      <div class="channel-list" id="homeList"></div>
+
+    </div>
+
+    <!-- ════════ SEARCH ════════ -->
+    <div class="page" id="page-search">
+
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" id="searchInput" placeholder="Название, @username, тематика…" oninput="doSearch()">
+      </div>
+
+      <div class="filter-row">
+        <div class="filter-chip active" data-sort="default" onclick="setSort(this)">⚡ Все</div>
+        <div class="filter-chip" data-sort="subs" onclick="setSort(this)">👥 По подписчикам</div>
+        <div class="filter-chip" data-sort="price" onclick="setSort(this)">💰 По цене</div>
+        <div class="filter-chip" data-sort="er" onclick="setSort(this)">📊 По ER</div>
+        <div class="filter-chip" data-sort="collab" onclick="setSort(this)">🤝 Только ВП</div>
+        <div class="filter-chip" id="filterToggle" onclick="toggleFilters()">⚙️ Фильтры</div>
+      </div>
+
+      <!-- Filter panel -->
+      <div class="filter-panel" id="filterPanel">
+        <div class="filter-group">
+          <div class="filter-label">Категория</div>
+          <div class="filter-cats" id="filterCats">
+            <div class="fcat active" data-fcat="all" onclick="setFcat(this)">Все</div>
+            <div class="fcat" data-fcat="tech" onclick="setFcat(this)">🖥️ Tech</div>
+            <div class="fcat" data-fcat="business" onclick="setFcat(this)">💼 Бизнес</div>
+            <div class="fcat" data-fcat="finance" onclick="setFcat(this)">📈 Финансы</div>
+            <div class="fcat" data-fcat="games" onclick="setFcat(this)">🎮 Игры</div>
+            <div class="fcat" data-fcat="art" onclick="setFcat(this)">🎨 Арт</div>
+            <div class="fcat" data-fcat="sport" onclick="setFcat(this)">🏋️ Спорт</div>
+            <div class="fcat" data-fcat="news" onclick="setFcat(this)">📰 Новости</div>
+          </div>
+        </div>
+        <div class="filter-group">
+          <div class="filter-label">Подписчиков (мин – макс)</div>
+          <div class="range-row">
+            <input class="range-input" id="subsMin" type="number" placeholder="0" oninput="doSearch()">
+            <input class="range-input" id="subsMax" type="number" placeholder="∞" oninput="doSearch()">
+          </div>
+        </div>
+        <div class="filter-group" style="margin-bottom:0">
+          <div class="filter-label">Цена рекламы (мин – макс, ₽)</div>
+          <div class="range-row">
+            <input class="range-input" id="priceMin" type="number" placeholder="0" oninput="doSearch()">
+            <input class="range-input" id="priceMax" type="number" placeholder="∞" oninput="doSearch()">
+          </div>
+        </div>
+      </div>
+
+      <div class="search-results-info">
+        <span id="resultsInfo">Показано 6 каналов</span>
+        <span id="activeFilters" style="color:var(--accent2)"></span>
+      </div>
+
+      <div class="channel-list" id="searchList"></div>
+    </div>
+
+    <!-- ════════ DONATE ════════ -->
+    <div class="page" id="page-donate">
+
+      <div class="donate-hero">
+        <span class="donate-emoji">💎</span>
+        <h2>Поддержи AdHub</h2>
+        <p>Твой донат помогает развивать каталог, добавлять новые функции и держать сервис бесплатным</p>
+      </div>
+
+      <p class="section-title">Бонусы донатерам</p>
+      <div class="perks">
+        <div class="perk-item">
+          <div class="perk-icon purple">⭐</div>
+          <div class="perk-text">
+            <strong>Verified-значок</strong>
+            <span>Ваши каналы получают значок проверенного автора</span>
+          </div>
+        </div>
+        <div class="perk-item">
+          <div class="perk-icon blue">🔝</div>
+          <div class="perk-text">
+            <strong>Топ выдачи</strong>
+            <span>Каналы отображаются выше в результатах поиска</span>
+          </div>
+        </div>
+        <div class="perk-item">
+          <div class="perk-icon green">📊</div>
+          <div class="perk-text">
+            <strong>Расширенная аналитика</strong>
+            <span>Доступ к детальной статистике просмотров и кликов</span>
+          </div>
+        </div>
+        <div class="perk-item">
+          <div class="perk-icon orange">💬</div>
+          <div class="perk-text">
+            <strong>Приоритетная поддержка</strong>
+            <span>Ответ в течение 2 часов вместо 24</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="section-title">Выберите сумму</p>
+      <div class="amounts-grid">
+        <div class="amount-btn" onclick="selectAmount(50, this)">
+          <div class="stars">⭐</div>
+          <div class="amount-val">50</div>
+          <div class="amount-rub">≈ 50 ₽</div>
+        </div>
+        <div class="amount-btn" onclick="selectAmount(100, this)">
+          <div class="stars">🌟</div>
+          <div class="amount-val">100</div>
+          <div class="amount-rub">≈ 100 ₽</div>
+        </div>
+        <div class="amount-btn selected" onclick="selectAmount(250, this)">
+          <div class="stars">💫</div>
+          <div class="amount-val">250</div>
+          <div class="amount-rub">≈ 250 ₽</div>
+        </div>
+        <div class="amount-btn" onclick="selectAmount(500, this)">
+          <div class="stars">✨</div>
+          <div class="amount-val">500</div>
+          <div class="amount-rub">≈ 500 ₽</div>
+        </div>
+        <div class="amount-btn" onclick="selectAmount(1000, this)">
+          <div class="stars">🔥</div>
+          <div class="amount-val">1000</div>
+          <div class="amount-rub">≈ 1000 ₽</div>
+        </div>
+        <div class="amount-btn" onclick="selectAmount('custom', this)">
+          <div class="stars">✏️</div>
+          <div class="amount-val">Своя</div>
+          <div class="amount-rub">Stars</div>
+        </div>
+      </div>
+      <div class="custom-amount" id="customAmountRow" style="display:none">
+        <input class="custom-input" id="customInput" type="number" placeholder="Введите кол-во Stars" min="1" max="10000">
+      </div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:15px;padding:14px" onclick="sendDonate()">
+        💎 Задонатить <span id="donateBtnAmount">250 Stars</span>
+      </button>
+
+      <p class="section-title" style="margin-top:24px">Топ донатеров</p>
+      <div class="donors-list">
+        <div class="donor-item">
+          <div class="donor-rank">🥇</div>
+          <div class="donor-info"><div class="donor-name">@superadmin</div><div class="donor-total">12 донатов</div></div>
+          <div class="donor-stars">5000 ⭐</div>
+        </div>
+        <div class="donor-item">
+          <div class="donor-rank">🥈</div>
+          <div class="donor-info"><div class="donor-name">@channel_pro</div><div class="donor-total">8 донатов</div></div>
+          <div class="donor-stars">2500 ⭐</div>
+        </div>
+        <div class="donor-item">
+          <div class="donor-rank">🥉</div>
+          <div class="donor-info"><div class="donor-name">@mediabuyer</div><div class="donor-total">5 донатов</div></div>
+          <div class="donor-stars">1200 ⭐</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════ SETTINGS ════════ -->
+    <div class="page" id="page-settings">
+
+      <!-- Profile -->
+      <div class="profile-card" id="profileCard">
+        <div class="profile-avatar">👤</div>
+        <div class="profile-info">
+          <div class="pname" id="profileName">Загрузка…</div>
+          <div class="pid" id="profileId"></div>
+          <div class="ptags">
+            <span class="tag">Пользователь</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Настройки уведомлений -->
+      <p class="section-title">Уведомления</p>
+      <div class="settings-section">
+        <div class="setting-item" onclick="toggleSetting('notifNew')">
+          <div class="set-icon blue">🔔</div>
+          <div class="set-text">
+            <div class="set-title">Новые каналы</div>
+            <div class="set-sub">Оповещать о новых каналах в каталоге</div>
+          </div>
+          <div class="set-right"><div class="toggle on" id="notifNew"></div></div>
+        </div>
+        <div class="setting-item" onclick="toggleSetting('notifCollab')">
+          <div class="set-icon purple">🤝</div>
+          <div class="set-text">
+            <div class="set-title">Запросы на ВП</div>
+            <div class="set-sub">Уведомления о новых заявках</div>
+          </div>
+          <div class="set-right"><div class="toggle on" id="notifCollab"></div></div>
+        </div>
+        <div class="setting-item" onclick="toggleSetting('notifPrice')">
+          <div class="set-icon green">💰</div>
+          <div class="set-text">
+            <div class="set-title">Изменение цен</div>
+            <div class="set-sub">Уведомлять об изменении цен на рекламу</div>
+          </div>
+          <div class="set-right"><div class="toggle" id="notifPrice"></div></div>
+        </div>
+      </div>
+
+      <!-- Отображение -->
+      <p class="section-title">Отображение</p>
+      <div class="settings-section">
+        <div class="setting-item" onclick="toggleSetting('showVerified')">
+          <div class="set-icon blue">✅</div>
+          <div class="set-text">
+            <div class="set-title">Только верифицированные</div>
+            <div class="set-sub">Показывать только проверенные каналы</div>
+          </div>
+          <div class="set-right"><div class="toggle" id="showVerified"></div></div>
+        </div>
+        <div class="setting-item" onclick="toggleSetting('showCollab')">
+          <div class="set-icon orange">🤝</div>
+          <div class="set-text">
+            <div class="set-title">Только ВП-каналы</div>
+            <div class="set-sub">Фильтр на взаимопиар по умолчанию</div>
+          </div>
+          <div class="set-right"><div class="toggle" id="showCollab"></div></div>
+        </div>
+      </div>
+
+      <!-- Аккаунт -->
+      <p class="section-title">Аккаунт</p>
+      <div class="settings-section">
+        <div class="setting-item" onclick="showToast('📺 Мои каналы скоро доступны', 'success')">
+          <div class="set-icon purple">📺</div>
+          <div class="set-text">
+            <div class="set-title">Мои каналы</div>
+            <div class="set-sub">Управление добавленными каналами</div>
+          </div>
+          <div class="set-right">›</div>
+        </div>
+        <div class="setting-item" onclick="showToast('❤️ Избранное скоро доступно', 'success')">
+          <div class="set-icon green">❤️</div>
+          <div class="set-text">
+            <div class="set-title">Избранное</div>
+            <div class="set-sub">Сохранённые каналы</div>
+          </div>
+          <div class="set-right">›</div>
+        </div>
+        <div class="setting-item" onclick="sendToBot({action:'export'})">
+          <div class="set-icon orange">📤</div>
+          <div class="set-text">
+            <div class="set-title">Экспорт данных</div>
+            <div class="set-sub">Скачать мои данные</div>
+          </div>
+          <div class="set-right">›</div>
+        </div>
+        <div class="setting-item" onclick="clearFavorites()">
+          <div class="set-icon red">🗑</div>
+          <div class="set-text">
+            <div class="set-title">Очистить избранное</div>
+            <div class="set-sub">Удалить все сохранённые каналы</div>
+          </div>
+          <div class="set-right" style="color:var(--red)">›</div>
+        </div>
+      </div>
+
+      <!-- О приложении -->
+      <p class="section-title">О приложении</p>
+      <div class="settings-section">
+        <div class="setting-item">
+          <div class="set-icon blue">ℹ️</div>
+          <div class="set-text">
+            <div class="set-title">Версия</div>
+          </div>
+          <div class="set-right">v1.0.0</div>
+        </div>
+        <div class="setting-item" onclick="showToast('📢 @adhub_official', 'success')">
+          <div class="set-icon purple">📢</div>
+          <div class="set-text">
+            <div class="set-title">Наш канал</div>
+            <div class="set-sub">@adhub_official</div>
+          </div>
+          <div class="set-right">›</div>
+        </div>
+        <div class="setting-item" onclick="showToast('💬 @adhub_support', 'success')">
+          <div class="set-icon green">💬</div>
+          <div class="set-text">
+            <div class="set-title">Поддержка</div>
+            <div class="set-sub">@adhub_support</div>
+          </div>
+          <div class="set-right">›</div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ── Bottom Nav ──────────────────────────────────────────────────────────── -->
+  <nav class="nav">
+    <div class="nav-item active" id="nav-home" onclick="showPage('home')">
+      <div class="nav-icon">🏠</div>
+      <span class="nav-label">Главная</span>
+    </div>
+    <div class="nav-item" id="nav-search" onclick="showPage('search')">
+      <div class="nav-icon">🔍</div>
+      <span class="nav-label">Поиск</span>
+    </div>
+    <div class="nav-item" id="nav-donate" onclick="showPage('donate')">
+      <div class="nav-icon">💎</div>
+      <span class="nav-label">Донат</span>
+      <div class="nav-dot"></div>
+    </div>
+    <div class="nav-item" id="nav-settings" onclick="showPage('settings')">
+      <div class="nav-icon">⚙️</div>
+      <span class="nav-label">Настройки</span>
+    </div>
+  </nav>
+
+</div>
+
+<!-- ── Modal ───────────────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-content" id="modalContent"></div>
+  </div>
+</div>
+
+<!-- ── Toasts ──────────────────────────────────────────────────────────────── -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ── Telegram WebApp init ──────────────────────────────────────────────────────
+const tg = window.Telegram?.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+  tg.setHeaderColor('#0a0a0f');
+  tg.setBackgroundColor('#0a0a0f');
+}
+
+// ── Data ──────────────────────────────────────────────────────────────────────
+const CHANNELS = [
+  {id:1,name:"TechPulse",username:"@techpulse",cat:"tech",subs:45200,
+   desc:"Новости IT, гаджеты, обзоры техники и всё о технологиях будущего",
+   price:1500,collab:true,verified:true,avatar:"🖥️",er:8.4},
+  {id:2,name:"Business Insider RU",username:"@bizinsider_ru",cat:"business",subs:128000,
+   desc:"Бизнес, стартапы, инвестиции, кейсы успешных предпринимателей",
+   price:4000,collab:true,verified:true,avatar:"💼",er:6.2},
+  {id:3,name:"GameZone",username:"@gamezone_tg",cat:"games",subs:22100,
+   desc:"Игровые новости, обзоры, стримы, анонсы и скидки на игры",
+   price:800,collab:false,verified:false,avatar:"🎮",er:12.1},
+  {id:4,name:"FinanceFlow",username:"@financeflow",cat:"finance",subs:89500,
+   desc:"Крипто, акции, пассивный доход, инвестиционные стратегии",
+   price:3200,collab:true,verified:true,avatar:"📈",er:9.7},
+  {id:5,name:"Creative Hub",username:"@creativehub",cat:"art",subs:15300,
+   desc:"Дизайн, иллюстрация, вдохновение для творческих людей",
+   price:600,collab:true,verified:false,avatar:"🎨",er:15.3},
+  {id:6,name:"SportLife",username:"@sportlife_tg",cat:"sport",subs:34000,
+   desc:"Фитнес, тренировки, питание, здоровый образ жизни",
+   price:1200,collab:true,verified:true,avatar:"🏋️",er:7.8},
+];
+
+let favorites = JSON.parse(localStorage.getItem('adhub_favs') || '[]');
+let currentSort = 'default';
+let currentFcat = 'all';
+let selectedAmount = 250;
+let showFavPage = false;
+
+// ── Page navigation ───────────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  showFavPage = false;
+  if (name === 'search') doSearch();
+  if (name === 'home') renderHome('all');
+  if (name === 'settings') initSettings();
+  if (tg) tg.HapticFeedback?.impactOccurred('light');
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function showToast(msg, type = '') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(-6px)'; t.style.transition = '.3s'; setTimeout(() => t.remove(), 300); }, 2200);
+}
+
+// ── Format numbers ────────────────────────────────────────────────────────────
+function fmt(n) {
+  if (n >= 1000000) return (n/1000000).toFixed(1) + 'М';
+  if (n >= 1000) return (n/1000).toFixed(n >= 10000 ? 0 : 1) + 'К';
+  return n.toString();
+}
+
+// ── Channel card HTML ─────────────────────────────────────────────────────────
+function buildCard(ch) {
+  const isFav = favorites.includes(ch.id);
+  const catNames = {tech:'Технологии',business:'Бизнес',games:'Игры',art:'Творчество',finance:'Финансы',sport:'Спорт',news:'Новости'};
+  return `
+  <div class="ch-card" onclick="openModal(${ch.id})">
+    <div class="ch-top">
+      <div class="ch-avatar">${ch.avatar}</div>
+      <div class="ch-info">
+        <div class="ch-name-row">
+          <span class="ch-name">${ch.name}</span>
+          ${ch.verified ? '<span class="badge-verified" title="Верифицирован">✓</span>' : ''}
+        </div>
+        <div class="ch-username">${ch.username}</div>
+        <div class="ch-tags">
+          <span class="tag">${catNames[ch.cat] || ch.cat}</span>
+          ${ch.collab ? '<span class="tag green">🤝 ВП</span>' : ''}
+          ${ch.er > 10 ? '<span class="tag orange">🔥 Топ ER</span>' : ''}
+        </div>
+      </div>
+    </div>
+    <div class="ch-desc">${ch.desc}</div>
+    <div class="ch-metrics">
+      <div class="metric"><span>👥</span><strong>${fmt(ch.subs)}</strong></div>
+      <div class="metric"><span>📊</span><strong>ER ${ch.er}%</strong></div>
+      <div class="metric"><span>📋</span><strong>${ch.collab ? 'ВП доступен' : 'Только реклама'}</strong></div>
+    </div>
+    <div class="ch-bottom">
+      <div class="price-badge">💰 ${ch.price.toLocaleString('ru')} ₽</div>
+      <div class="ch-action-btns">
+        <button class="ch-btn ch-btn-ghost" onclick="event.stopPropagation();toggleFav(${ch.id},this)">${isFav ? '❤️' : '🤍'}</button>
+        <button class="ch-btn ch-btn-primary" onclick="event.stopPropagation();contactChannel(${ch.id})">📩 Связаться</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── HOME ──────────────────────────────────────────────────────────────────────
+function renderHome(cat) {
+  const list = document.getElementById('homeList');
+  let data = cat === 'all' ? CHANNELS : CHANNELS.filter(c => c.cat === cat);
+  list.innerHTML = data.length ? data.map(buildCard).join('') : emptyState('Нет каналов', 'Попробуйте другую категорию');
+  document.getElementById('statChannels').textContent = CHANNELS.length;
+  document.getElementById('totalCount').textContent = CHANNELS.length;
+}
+
+document.getElementById('homeCats').addEventListener('click', e => {
+  const pill = e.target.closest('.cat-pill');
+  if (!pill) return;
+  document.querySelectorAll('#homeCats .cat-pill').forEach(p => p.classList.remove('active'));
+  pill.classList.add('active');
+  renderHome(pill.dataset.cat);
+});
+
+// ── SEARCH ────────────────────────────────────────────────────────────────────
+function doSearch() {
+  const q = document.getElementById('searchInput').value.toLowerCase().trim();
+  const subsMin = parseInt(document.getElementById('subsMin').value) || 0;
+  const subsMax = parseInt(document.getElementById('subsMax').value) || Infinity;
+  const priceMin = parseInt(document.getElementById('priceMin').value) || 0;
+  const priceMax = parseInt(document.getElementById('priceMax').value) || Infinity;
+
+  let data = CHANNELS.filter(c => {
+    if (currentFcat !== 'all' && c.cat !== currentFcat) return false;
+    if (q && !c.name.toLowerCase().includes(q) && !c.username.toLowerCase().includes(q) && !c.desc.toLowerCase().includes(q)) return false;
+    if (c.subs < subsMin || c.subs > subsMax) return false;
+    if (c.price < priceMin || c.price > priceMax) return false;
+    if (currentSort === 'collab' && !c.collab) return false;
+    return true;
+  });
+
+  if (currentSort === 'subs')  data = [...data].sort((a,b) => b.subs - a.subs);
+  if (currentSort === 'price') data = [...data].sort((a,b) => a.price - b.price);
+  if (currentSort === 'er')    data = [...data].sort((a,b) => b.er - a.er);
+
+  const list = document.getElementById('searchList');
+  list.innerHTML = data.length ? data.map(buildCard).join('') : emptyState('Ничего не найдено', 'Попробуйте изменить запрос или фильтры');
+  document.getElementById('resultsInfo').textContent = `Найдено ${data.length} кан${data.length===1?'ал':data.length<5?'ала':'алов'}`;
+}
+
+function setSort(el) {
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  currentSort = el.dataset.sort;
+  if (currentSort === 'collab') el.textContent = '🤝 Только ВП ✓';
+  doSearch();
+}
+
+function setFcat(el) {
+  document.querySelectorAll('.fcat').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  currentFcat = el.dataset.fcat;
+  doSearch();
+}
+
+function toggleFilters() {
+  const p = document.getElementById('filterPanel');
+  const btn = document.getElementById('filterToggle');
+  p.classList.toggle('open');
+  btn.classList.toggle('active');
+  btn.textContent = p.classList.contains('open') ? '⚙️ Скрыть' : '⚙️ Фильтры';
+}
+
+// ── FAV ───────────────────────────────────────────────────────────────────────
+function toggleFav(id, btn) {
+  const idx = favorites.indexOf(id);
+  if (idx === -1) {
+    favorites.push(id);
+    btn.textContent = '❤️';
+    showToast('❤️ Добавлено в избранное', 'success');
+  } else {
+    favorites.splice(idx, 1);
+    btn.textContent = '🤍';
+    showToast('🤍 Удалено из избранного');
+  }
+  localStorage.setItem('adhub_favs', JSON.stringify(favorites));
+  sendToBot({action: 'favorite', channel_id: id});
+}
+
+function toggleFavPage() {
+  showFavPage = !showFavPage;
+  const pg = document.getElementById('page-home');
+  pg.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('nav-home').classList.add('active');
+  const list = document.getElementById('homeList');
+  if (showFavPage) {
+    document.getElementById('favBtn').style.color = '#f87171';
+    const favChs = CHANNELS.filter(c => favorites.includes(c.id));
+    list.innerHTML = favChs.length ? favChs.map(buildCard).join('') : emptyState('Избранное пусто', 'Добавляйте каналы нажав 🤍');
+  } else {
+    document.getElementById('favBtn').style.color = '';
+    renderHome('all');
+  }
+}
+
+function clearFavorites() {
+  favorites = [];
+  localStorage.removeItem('adhub_favs');
+  showToast('🗑 Избранное очищено');
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────────
+function openModal(id) {
+  const ch = CHANNELS.find(c => c.id === id);
+  if (!ch) return;
+  const isFav = favorites.includes(ch.id);
+  const catNames = {tech:'Технологии',business:'Бизнес',games:'Игры',art:'Творчество',finance:'Финансы',sport:'Спорт',news:'Новости'};
+  document.getElementById('modalContent').innerHTML = `
+    <div class="modal-ch-header">
+      <div class="modal-avatar">${ch.avatar}</div>
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;display:flex;align-items:center;gap:7px">
+          ${ch.name} ${ch.verified?'<span class="badge-verified">✓</span>':''}
+        </div>
+        <div style="color:var(--text3);font-size:13px;margin:3px 0">${ch.username}</div>
+        <span class="tag">${catNames[ch.cat]||ch.cat}</span>
+        ${ch.collab?'<span class="tag green" style="margin-left:5px">🤝 ВП</span>':''}
+      </div>
+    </div>
+    <div class="modal-stat-grid">
+      <div class="modal-stat">
+        <div class="modal-stat-val">${fmt(ch.subs)}</div>
+        <div class="modal-stat-key">Подписчиков</div>
+      </div>
+      <div class="modal-stat">
+        <div class="modal-stat-val">${ch.er}%</div>
+        <div class="modal-stat-key">ER (вовлечённость)</div>
+      </div>
+      <div class="modal-stat">
+        <div class="modal-stat-val">${ch.price.toLocaleString('ru')} ₽</div>
+        <div class="modal-stat-key">Цена рекламы</div>
+      </div>
+      <div class="modal-stat">
+        <div class="modal-stat-val">${ch.collab?'✅':'❌'}</div>
+        <div class="modal-stat-key">Взаимопиар</div>
+      </div>
+    </div>
+    <p class="modal-desc">${ch.desc}</p>
+    <div class="modal-btns">
+      <button class="modal-btn modal-btn-primary" onclick="contactChannel(${ch.id});closeModal()">📩 Написать администратору</button>
+      ${ch.collab?`<button class="modal-btn modal-btn-secondary" onclick="requestCollab(${ch.id});closeModal()">🤝 Предложить взаимопиар</button>`:''}
+      <button class="modal-btn modal-btn-secondary" onclick="toggleFavModal(${ch.id},this)">${isFav?'❤️ В избранном':'🤍 Добавить в избранное'}</button>
+    </div>`;
+  document.getElementById('modalOverlay').classList.add('open');
+  if (tg) tg.HapticFeedback?.impactOccurred('medium');
+}
+
+function closeModal(e) {
+  if (!e || e.target === document.getElementById('modalOverlay')) {
+    document.getElementById('modalOverlay').classList.remove('open');
+  }
+}
+
+function toggleFavModal(id, btn) {
+  const idx = favorites.indexOf(id);
+  if (idx === -1) { favorites.push(id); btn.textContent = '❤️ В избранном'; showToast('❤️ Добавлено', 'success'); }
+  else { favorites.splice(idx,1); btn.textContent = '🤍 Добавить в избранное'; showToast('🤍 Удалено'); }
+  localStorage.setItem('adhub_favs', JSON.stringify(favorites));
+}
+
+// ── Contact / Collab ──────────────────────────────────────────────────────────
+function contactChannel(id) {
+  const ch = CHANNELS.find(c => c.id === id);
+  if (!ch) return;
+  sendToBot({ action: 'contact', channel_id: id });
+  showToast(`📩 Запрос к ${ch.name} отправлен!`, 'success');
+  if (tg) tg.HapticFeedback?.notificationOccurred('success');
+}
+
+function requestCollab(id) {
+  const ch = CHANNELS.find(c => c.id === id);
+  if (!ch) return;
+  sendToBot({ action: 'collab', channel_id: id });
+  showToast(`🤝 Запрос на ВП с ${ch.name} отправлен!`, 'success');
+  if (tg) tg.HapticFeedback?.notificationOccurred('success');
+}
+
+// ── Donate ────────────────────────────────────────────────────────────────────
+function selectAmount(val, el) {
+  document.querySelectorAll('.amount-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  const customRow = document.getElementById('customAmountRow');
+  if (val === 'custom') {
+    customRow.style.display = 'flex';
+    selectedAmount = null;
+    document.getElementById('donateBtnAmount').textContent = 'Stars';
+  } else {
+    customRow.style.display = 'none';
+    selectedAmount = val;
+    document.getElementById('donateBtnAmount').textContent = val + ' Stars';
+  }
+}
+
+function sendDonate() {
+  let amount = selectedAmount;
+  if (!amount) {
+    amount = parseInt(document.getElementById('customInput').value);
+    if (!amount || amount < 1 || amount > 10000) {
+      showToast('⚠️ Введите корректную сумму (1–10000)', 'error');
+      return;
+    }
+  }
+  sendToBot({ action: 'donate', amount });
+  showToast(`💎 Спасибо за ${amount} Stars! ❤️`, 'success');
+  if (tg) tg.HapticFeedback?.notificationOccurred('success');
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+const settings = JSON.parse(localStorage.getItem('adhub_settings') || '{"notifNew":true,"notifCollab":true,"notifPrice":false,"showVerified":false,"showCollab":false}');
+
+function initSettings() {
+  const user = tg?.initDataUnsafe?.user;
+  document.getElementById('profileName').textContent = user ? (user.first_name + (user.last_name ? ' ' + user.last_name : '')) : 'Пользователь';
+  document.getElementById('profileId').textContent = user ? `ID: ${user.id} · @${user.username || '—'}` : 'Открыто в браузере';
+  Object.keys(settings).forEach(k => {
+    const el = document.getElementById(k);
+    if (el) el.classList.toggle('on', !!settings[k]);
+  });
+}
+
+function toggleSetting(key) {
+  settings[key] = !settings[key];
+  const el = document.getElementById(key);
+  if (el) el.classList.toggle('on', settings[key]);
+  localStorage.setItem('adhub_settings', JSON.stringify(settings));
+  showToast(settings[key] ? '✅ Включено' : '❌ Выключено');
+  if (tg) tg.HapticFeedback?.impactOccurred('light');
+}
+
+// ── Send to bot ───────────────────────────────────────────────────────────────
+function sendToBot(data) {
+  if (tg) {
+    try { tg.sendData(JSON.stringify(data)); } catch(e) {}
+  }
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+function emptyState(title, sub) {
+  return `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">${title}</div><div class="empty-sub">${sub}</div></div>`;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+renderHome('all');
+doSearch();
+initSettings();
+</script>
+</body>
+</html>
