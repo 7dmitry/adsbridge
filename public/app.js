@@ -1,4 +1,9 @@
 // ── Telegram WebApp init ──────────────────────────────────────────────────────
+
+//git add .
+//git commit -m "fix db connection"
+//git push
+
 const tg = window.Telegram?.WebApp;
 if (tg) {
   tg.ready();
