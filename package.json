@@ -2,8 +2,12 @@
   "name": "adminsofchannel",
   "version": "1.0.0",
   "description": "",
-  "main": "app.js",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
+    "start": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -17,13 +21,4 @@
     "node-telegram-bot-api": "^0.63.0",
     "pg": "^8.20.0"
   }
-}
-
-{
-  "name": "adminsofchannel",
-  "version": "1.0.0",
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  ...
 }
