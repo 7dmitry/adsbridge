@@ -44,17 +44,31 @@ users_db = {}
 
 def ensure_user(user):
     uid = user.id
+    # Сохраняем в памяти
     if uid not in users_db:
         users_db[uid] = {
-            "id":            uid,
-            "username":      user.username or "",
-            "first_name":    user.first_name or "",
-            "joined":        datetime.now().isoformat(),
-            "notifications": True,
-            "lang":          "ru",
-            "favorites":     [],
-            "total_donated": 0,
+            "id":         uid,
+            "username":   user.username or "",
+            "first_name": user.first_name or "",
+            "joined":     datetime.now().isoformat(),
         }
+    # Сохраняем в БД
+    try:
+        c.execute("""
+            INSERT INTO users (id, username, first_name, last_name)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (id) DO UPDATE
+            SET username = EXCLUDED.username,
+                first_name = EXCLUDED.first_name,
+                last_name = EXCLUDED.last_name
+        """, (
+            uid,
+            user.username or "",
+            user.first_name or "",
+            user.last_name or "",
+        ))
+    except Exception as e:
+        logger.warning(f"Ошибка сохранения пользователя: {e}")
     return users_db[uid]
 
 def get_channels_count():

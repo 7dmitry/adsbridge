@@ -45,6 +45,21 @@ const CAT_NAMES = {
   edu:'Образование', other:'Другое'
 };
 
+// ── Регистрация пользователя при открытии ─────────────────────────────────────
+async function registerUser() {
+  const user = tg?.initDataUnsafe?.user;
+  if (!user) return;
+  await apiFetch('/users', {
+    method: 'POST',
+    body: JSON.stringify({
+      id:         user.id,
+      username:   user.username || '',
+      first_name: user.first_name || '',
+      last_name:  user.last_name || '',
+    }),
+  });
+}
+
 // ── Загрузка каналов из БД ────────────────────────────────────────────────────
 async function loadChannels(category = null) {
   const url = category && category !== 'all'
@@ -608,6 +623,7 @@ function emptyState(title, sub) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+registerUser();
 loadStats();
 renderHome('all');
 doSearch();

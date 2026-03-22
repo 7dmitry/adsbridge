@@ -29,6 +29,24 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
+// Создать или обновить пользователя
+app.post('/api/users', async (req, res) => {
+  try {
+    const { id, username, first_name, last_name } = req.body;
+    const result = await pool.query(`
+      INSERT INTO users (id, username, first_name, last_name)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (id) DO UPDATE
+      SET username = EXCLUDED.username,
+          first_name = EXCLUDED.first_name,
+          last_name = EXCLUDED.last_name
+      RETURNING *
+    `, [id, username || '', first_name || '', last_name || '']);
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // ===== CHANNELS =====
 
 app.get('/api/channels', async (req, res) => {
