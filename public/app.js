@@ -13,7 +13,7 @@ if (tg) {
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
-const API = 'https://adsway.up.railway.app';
+const API = 'https://adsway.up.railway.app/api';
 
 async function apiFetch(path, options = {}) {
   try {
