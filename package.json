@@ -18,3 +18,12 @@
     "pg": "^8.20.0"
   }
 }
+
+{
+  "name": "adminsofchannel",
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  ...
+}
