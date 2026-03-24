@@ -317,7 +317,7 @@ async function submitChannel() {
 
 // ── Шаг верификации ───────────────────────────────────────────────────────────
 function showVerifyStep(usname, channelData) {
-  const botUsername = 'adsway_bot'; // ← замени на @username бота без @
+  const botUsername = 'adsway_bot'; 
 
   document.getElementById('manageFormCard').innerHTML = `
     <div class="manage-form-title">🔐 Подтверждение владения</div>
@@ -333,12 +333,6 @@ function showVerifyStep(usname, channelData) {
         <div class="verify-step-num">2</div>
         <div class="verify-step-text">
           Нажми кнопку «Проверить» — мы убедимся что ты владелец
-        </div>
-      </div>
-      <div class="verify-step">
-        <div class="verify-step-num">3</div>
-        <div class="verify-step-text">
-          После проверки бота можно убрать из канала
         </div>
       </div>
     </div>
@@ -391,7 +385,7 @@ async function verifyAndSave() {
         body: JSON.stringify({ user_id: user.id, channel_id: result.id, premium: false }),
       });
     }
-    showToast('✅ Канал добавлен! Подписчиков: ' + verify.subscribers, 'success');
+    showToast('✅ Канал добавлен!');
     renderManagePage();
     loadStats();
     window._pendingChannel = null;
