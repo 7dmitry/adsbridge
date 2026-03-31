@@ -58,7 +58,7 @@
         </div>
         <div class="stat-card">
           <div class="stat-num" id="statPremium">—</div>
-          <div class="stat-label">💎 Премиум</div>
+          <div class="stat-label">💎 Премиум каналов</div>
         </div>
       </div>
 
@@ -207,7 +207,7 @@
         <p>Твой донат помогает развивать каталог, добавлять новые функции и держать сервис бесплатным</p>
       </div>
 
-      <p class="section-title">Бонусы донатерам</p>
+      <p class="section-title">Премиум дает:</p>
       <div class="perks">
         <div class="perk-item">
           <div class="perk-icon purple">⭐</div>
@@ -223,53 +223,30 @@
             <span>Каналы отображаются выше в результатах поиска</span>
           </div>
         </div>
-        <div class="perk-item">
-          <div class="perk-icon green">📊</div>
-          <div class="perk-text">
-            <strong>Расширенная аналитика</strong>
-            <span>Доступ к детальной статистике просмотров и кликов</span>
-          </div>
-        </div>
-        <div class="perk-item">
-          <div class="perk-icon orange">💬</div>
-          <div class="perk-text">
-            <strong>Приоритетная поддержка</strong>
-            <span>Ответ в течение 2 часов вместо 24</span>
-          </div>
-        </div>
+        
       </div>
 
       <p class="section-title">Выберите сумму</p>
       <div class="amounts-grid">
-        <div class="amount-btn" onclick="selectAmount(50, this)">
+        <div class="amount-btn" onclick="selectAmount(49, this)">
           <div class="stars">⭐</div>
-          <div class="amount-val">50</div>
-          <div class="amount-rub">≈ 50 ₽</div>
+          <div class="amount-val">49</div>
+          <div class="amount-rub">1 Неделя</div>
         </div>
-        <div class="amount-btn" onclick="selectAmount(100, this)">
-          <div class="stars">🌟</div>
-          <div class="amount-val">100</div>
-          <div class="amount-rub">≈ 100 ₽</div>
+        <div class="amount-btn" onclick="selectAmount(99, this)">
+          <div class="stars">⭐</div>
+          <div class="amount-val">99</div>
+          <div class="amount-rub">1 Месяц</div>
         </div>
-        <div class="amount-btn selected" onclick="selectAmount(250, this)">
-          <div class="stars">💫</div>
-          <div class="amount-val">250</div>
-          <div class="amount-rub">≈ 250 ₽</div>
+        <div class="amount-btn selected" onclick="selectAmount(499, this)">
+          <div class="stars">⭐</div>
+          <div class="amount-val">289</div>
+          <div class="amount-rub">3 месяцев</div>
         </div>
-        <div class="amount-btn" onclick="selectAmount(500, this)">
-          <div class="stars">✨</div>
-          <div class="amount-val">500</div>
-          <div class="amount-rub">≈ 500 ₽</div>
-        </div>
-        <div class="amount-btn" onclick="selectAmount(1000, this)">
-          <div class="stars">🌠</div>
-          <div class="amount-val">1000</div>
-          <div class="amount-rub">≈ 1000 ₽</div>
-        </div>
-        <div class="amount-btn" onclick="selectAmount('custom', this)">
-          <div class="stars">✏️</div>
-          <div class="amount-val">Своя</div>
-          <div class="amount-rub">сумма</div>
+        <div class="amount-btn" onclick="selectAmount(489, this)">
+          <div class="stars">⭐</div>
+          <div class="amount-val">549</div>
+          <div class="amount-rub">6 месяцев</div>
         </div>
       </div>
 
@@ -280,25 +257,6 @@
       <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:15px;padding:14px" onclick="sendDonate()">
         💎 Задонатить <span id="donateBtnAmount">250 Stars</span>
       </button>
-
-      <p class="section-title" style="margin-top:24px">Топ донатеров</p>
-      <div class="donors-list">
-        <div class="donor-item">
-          <div class="donor-rank">🥇</div>
-          <div class="donor-info"><div class="donor-name">@superadmin</div><div class="donor-total">12 донатов</div></div>
-          <div class="donor-stars">5000 ⭐</div>
-        </div>
-        <div class="donor-item">
-          <div class="donor-rank">🥈</div>
-          <div class="donor-info"><div class="donor-name">@channel_pro</div><div class="donor-total">8 донатов</div></div>
-          <div class="donor-stars">2500 ⭐</div>
-        </div>
-        <div class="donor-item">
-          <div class="donor-rank">🥉</div>
-          <div class="donor-info"><div class="donor-name">@mediabuyer</div><div class="donor-total">5 донатов</div></div>
-          <div class="donor-stars">1200 ⭐</div>
-        </div>
-      </div>
     </div>
 
     <!-- ════════ SETTINGS ════════ -->
