@@ -72,21 +72,20 @@ async function loadChannels(category = null) {
 
 function mapChannel(ch) {
   return {
-    id:        ch.id,
-    name:      ch.name,
-    usname:    ch.usname,
-    username:  '@' + ch.usname,
-    cat:       ch.category,
-    subs:      ch.subscribers || 0,
-    desc:      ch.desc || '',
-    price24:   ch.pricead_24 || null,
-    priceAll:  ch.pricead_all || null,
-    price:     parseFloat(ch.pricead_24) || 0,
-    collab:    ch.collab ?? false,
-    verified:  ch.verified ?? false,
-    avatar:    ch.avatar || '📢',
-    er:        parseFloat(ch.er) || 0,
-    owner_id:  ch.owner_id,
+    id:       ch.id,
+    name:     ch.name,
+    usname:   ch.usname,
+    username: '@' + ch.usname,
+    cat:      ch.category,
+    subs:     ch.subscribers || 0,
+    desc:     ch.desc || '',
+    price24:  ch.pricead_24 || null,
+    priceAll: ch.pricead_all || null,
+    price:    parseFloat(ch.pricead_24) || 0,
+    collab:   ch.collab ?? false,
+    verified: ch.verified ?? false,
+    avatar:   ch.avatar_url || null,
+    owner_id: ch.owner_id,
   };
 }
 
@@ -145,7 +144,12 @@ function buildCard(ch) {
   return `
   <div class="ch-card" onclick="openModal(${ch.id})">
     <div class="ch-top">
-      <div class="ch-avatar">${ch.avatar}</div>
+      <div class="ch-avatar">
+        ${ch.avatar 
+          ? `<img src="${ch.avatar}" style="width:100%;height:100%;border-radius:12px;object-fit:cover;" onerror="this.parentNode.innerHTML='📢'">`
+          : '📢'
+        }
+      </div>
       <div class="ch-info">
         <div class="ch-name-row">
           <span class="ch-name">${ch.name}</span>
@@ -484,7 +488,12 @@ function openModal(id) {
   const priceAllStr = ch.priceAll ? `$${ch.priceAll}` : '—';
   document.getElementById('modalContent').innerHTML = `
     <div class="modal-ch-header">
-      <div class="modal-avatar">${ch.avatar}</div>
+      <div class="modal-avatar">
+        ${ch.avatar
+          ? `<img src="${ch.avatar}" style="width:100%;height:100%;border-radius:16px;object-fit:cover;" onerror="this.parentNode.innerHTML='📢'">`
+          : '📢'
+        }
+      </div>
       <div>
         <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;display:flex;align-items:center;gap:7px">
           ${ch.name} ${ch.verified?'<span class="badge-verified">✓</span>':''}
