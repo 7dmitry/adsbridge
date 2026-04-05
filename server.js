@@ -81,11 +81,11 @@ app.get('/api/channels/:id', async (req, res) => {
 
 app.post('/api/channels', async (req, res) => {
   try {
-    const { name, usname, category, subscribers, pricead_24, pricead_all, owner_id } = req.body;
+    const { name, usname, category, subscribers, pricead_24, pricead_all, owner_id, avatar_url } = req.body;
     const result = await pool.query(
-      `INSERT INTO channels (name, usname, category, subscribers, pricead_24, pricead_all, owner_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [name, usname, category, subscribers || 0, pricead_24 || null, pricead_all || null, owner_id]
+      `INSERT INTO channels (name, usname, category, subscribers, pricead_24, pricead_all, owner_id, avatar_url)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [name, usname, category, subscribers || 0, pricead_24 || null, pricead_all || null, owner_id, avatar_url || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {

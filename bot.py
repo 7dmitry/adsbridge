@@ -103,31 +103,17 @@ async def fetch_subscribers(usname: str):
 async def fetch_channel_avatar(usname: str):
     try:
         chat = await bot.get_chat('@' + usname)
+        logger.info(f"📷 @{usname} фото: {chat.photo}")
         if chat.photo:
             file = await bot.get_file(chat.photo.big_file_id)
-            return f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
+            url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
+            logger.info(f"✅ Аватарка @{usname}: {url}")
+            return url
+        logger.info(f"❌ @{usname} — нет фото")
         return None
     except Exception as e:
         logger.warning(f"Не удалось получить аватарку @{usname}: {e}")
         return None
-
-async def update_channel_subscribers(channel_id: int, usname: str):
-    subs = await fetch_subscribers(usname)
-    avatar = await fetch_channel_avatar(usname)
-
-    if subs is not None:
-        if avatar:
-            c.execute(
-                "UPDATE channels SET subscribers = %s, avatar_url = %s WHERE id = %s",
-                (subs, avatar, channel_id)
-            )
-        else:
-            c.execute(
-                "UPDATE channels SET subscribers = %s WHERE id = %s",
-                (subs, channel_id)
-            )
-        logger.info(f"✅ @{usname} → {subs} подп.")
-    return subs
 
 # ── Фоновая задача: обновить ВСЕ каналы ──────────────────────────────────────
 async def update_all_subscribers():
