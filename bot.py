@@ -89,67 +89,34 @@ def get_user_channels(user_id):
     except Exception:
         return []
 
-# ── Получить subscribers канала через Telegram API ────────────────────────────
-async def fetch_subscribers(usname: str):
-    """Возвращает количество подписчиков канала или None при ошибке."""
-    try:
-        count = await bot.get_chat_member_count('@' + usname)
-        return count
-    except Exception as e:
-        logger.warning(f"Не удалось получить subscribers для @{usname}: {e}")
-        return None
-
-# ── Обновить subscribers одного канала в БД ───────────────────────────────────
-async def fetch_channel_avatar(usname: str):
+async def fetch_channel_info(usname: str):
+    """Возвращает (subscribers, avatar_url, name) или (None, None, None)."""
     try:
         chat = await bot.get_chat('@' + usname)
-        logger.info(f"📷 @{usname} фото: {chat.photo}")
+        name = chat.title
+        avatar_url = None
         if chat.photo:
             file = await bot.get_file(chat.photo.big_file_id)
-            url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
-            logger.info(f"✅ Аватарка @{usname}: {url}")
-            return url
-        logger.info(f"❌ @{usname} — нет фото")
-        return None
+            avatar_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
+        subs = await bot.get_chat_member_count('@' + usname)
+        logger.info(f"✅ @{usname} → {subs} подп., название: {name}")
+        return subs, avatar_url, name
     except Exception as e:
-        logger.warning(f"Не удалось получить аватарку @{usname}: {e}")
-        return None
+        logger.warning(f"Ошибка получения инфо @{usname}: {e}")
+        return None, None, None
 
-async def fetch_channel_avatar(usname: str):
-    try:
-        chat = await bot.get_chat('@' + usname)
-        logger.info(f"📷 @{usname} фото: {chat.photo}")
-        if chat.photo:
-            file = await bot.get_file(chat.photo.big_file_id)
-            url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
-            logger.info(f"✅ Аватарка @{usname}: {url}")
-            return url
-        logger.info(f"❌ @{usname} — нет фото")
-        return None
-    except Exception as e:
-        logger.warning(f"Не удалось получить аватарку @{usname}: {e}")
-        return None
-
-# ── ДОБАВЬ ЭТУ ФУНКЦИЮ ────────────────────────────────────────────────────────
 async def update_channel_subscribers(channel_id: int, usname: str):
-    subs = await fetch_subscribers(usname)
-    avatar = await fetch_channel_avatar(usname)
-
+    subs, avatar, name = await fetch_channel_info(usname)
     if subs is not None:
-        if avatar:
-            c.execute(
-                "UPDATE channels SET subscribers = %s, avatar_url = %s WHERE id = %s",
-                (subs, avatar, channel_id)
-            )
-        else:
-            c.execute(
-                "UPDATE channels SET subscribers = %s WHERE id = %s",
-                (subs, channel_id)
-            )
-        logger.info(f"✅ @{usname} → {subs} подп.")
+        c.execute(
+            """UPDATE channels
+               SET subscribers = %s, avatar_url = %s, name = %s
+               WHERE id = %s""",
+            (subs, avatar, name, channel_id)
+        )
+        logger.info(f"✅ @{usname} обновлён")
     return subs
-
-# ── Фоновая задача: обновить ВСЕ каналы ──────────────────────────────────────
+    
 async def update_all_subscribers():
     logger.info("🔄 Запуск обновления подписчиков всех каналов...")
     try:
@@ -167,12 +134,10 @@ async def update_all_subscribers():
             updated += 1
         else:
             failed += 1
-        # Пауза чтобы не флудить Telegram API
         await asyncio.sleep(0.5)
 
     logger.info(f"✅ Обновлено: {updated}, ❌ Ошибок: {failed}")
 
-    # Уведомить админа
     try:
         await bot.send_message(
             ADMIN_ID,
@@ -183,6 +148,7 @@ async def update_all_subscribers():
         )
     except Exception:
         pass
+
 
 # ── Категории ─────────────────────────────────────────────────────────────────
 CAT = {
