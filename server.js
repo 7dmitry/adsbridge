@@ -212,6 +212,8 @@ app.post('/api/verify-channel', async (req, res) => {
     const countData = await countRes.json();
     const subscribers = countData.ok ? countData.result : 0;
 
+    const channelName = chatData.ok ? chatData.result.title : null;
+
     // Получаем аватарку
     const chatRes = await fetch(
       `https://api.telegram.org/bot${process.env.BOT_TOKEN}/getChat`,
@@ -240,7 +242,7 @@ app.post('/api/verify-channel', async (req, res) => {
       }
     }
 
-    res.json({ verified: true, role: status, subscribers, avatar_url });
+    res.json({ verified: true, role: status, subscribers, avatar_url, name: channelName });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
