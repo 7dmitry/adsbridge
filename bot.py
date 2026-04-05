@@ -225,7 +225,7 @@ async def cmd_start(msg: types.Message):
         "• 🤝 Взаимного пиара между каналами\n"
         "• 📊 Анализа аудитории и ER\n\n"
         f"📺 В каталоге <b>{count} каналов</b>\n\n"
-        "📢 Канал: @AdsBridge_official\n",
+        "📢 Канал: @AdsBridge_official\n"
         "💬Чат: @AdsWay_Community",
         reply_markup=kb_main()
     )
