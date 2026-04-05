@@ -374,8 +374,9 @@ async function verifyAndSave() {
     return;
   }
 
-  // Подставляем реальное количество подписчиков из Telegram
-  channelData.subscribers = verify.subscribers || channelData.subscribers || 0;
+  // Подставляем данные из Telegram
+  channelData.subscribers = verify.subscribers || 0;
+  channelData.avatar_url  = verify.avatar_url || null;  // ← аватарка
 
   const result = await apiFetch('/channels', {
     method: 'POST',
@@ -389,7 +390,7 @@ async function verifyAndSave() {
         body: JSON.stringify({ user_id: user.id, channel_id: result.id, premium: false }),
       });
     }
-    showToast('✅ Канал добавлен!');
+    showToast('✅ Канал добавлен!', 'success');
     renderManagePage();
     loadStats();
     window._pendingChannel = null;

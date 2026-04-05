@@ -180,7 +180,7 @@ app.post('/api/verify-channel', async (req, res) => {
   if (!usname || !user_id) return res.status(400).json({ error: 'Укажи usname и user_id' });
 
   try {
-    // Проверяем что пользователь — владелец/админ
+    // Проверяем владельца
     const memberRes = await fetch(
       `https://api.telegram.org/bot${process.env.BOT_TOKEN}/getChatMember`,
       {
@@ -200,7 +200,7 @@ app.post('/api/verify-channel', async (req, res) => {
       return res.status(403).json({ verified: false, error: 'Вы не являетесь владельцем или администратором' });
     }
 
-    // Получаем количество подписчиков
+    // Получаем subscribers
     const countRes = await fetch(
       `https://api.telegram.org/bot${process.env.BOT_TOKEN}/getChatMembersCount`,
       {
@@ -212,7 +212,35 @@ app.post('/api/verify-channel', async (req, res) => {
     const countData = await countRes.json();
     const subscribers = countData.ok ? countData.result : 0;
 
-    res.json({ verified: true, role: status, subscribers });
+    // Получаем аватарку
+    const chatRes = await fetch(
+      `https://api.telegram.org/bot${process.env.BOT_TOKEN}/getChat`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: '@' + usname }),
+      }
+    );
+    const chatData = await chatRes.json();
+    let avatar_url = null;
+
+    if (chatData.ok && chatData.result.photo) {
+      const fileId = chatData.result.photo.big_file_id;
+      const fileRes = await fetch(
+        `https://api.telegram.org/bot${process.env.BOT_TOKEN}/getFile`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_id: fileId }),
+        }
+      );
+      const fileData = await fileRes.json();
+      if (fileData.ok) {
+        avatar_url = `https://api.telegram.org/file/bot${process.env.BOT_TOKEN}/${fileData.result.file_path}`;
+      }
+    }
+
+    res.json({ verified: true, role: status, subscribers, avatar_url });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
