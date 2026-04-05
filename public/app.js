@@ -289,23 +289,23 @@ async function renderManagePage() {
 // ── Добавить / обновить канал ─────────────────────────────────────────────────
 async function submitChannel() {
   const user = tg?.initDataUnsafe?.user;
-  const name     = document.getElementById('fName').value.trim();
   const usname   = document.getElementById('fUsname').value.trim().replace('@','');
   const category = document.getElementById('fCategory').value;
-  const subs     = parseInt(document.getElementById('fSubs').value) || 0;
   const price24  = document.getElementById('fPrice24').value.trim();
   const priceAll = document.getElementById('fPriceAll').value.trim();
 
-  if (!name || !usname || !category) {
+  if (!usname || !category) {
     showToast('⚠️ Заполните обязательные поля', 'error');
     return;
   }
 
-  // При редактировании — проверка не нужна
   if (editingChannelId) {
-    const body = { name, usname, category, subscribers: subs,
-                   pricead_24: price24 || null, pricead_all: priceAll || null,
-                   owner_id: user?.id || 0 };
+    const data = await apiFetch(`/channels/${editingChannelId}`);
+    const body = {
+      name: data.name, usname, category,
+      pricead_24: price24 || null, pricead_all: priceAll || null,
+      owner_id: user?.id || 0
+    };
     const result = await apiFetch(`/channels/${editingChannelId}`, {
       method: 'PUT', body: JSON.stringify(body)
     });
@@ -313,10 +313,13 @@ async function submitChannel() {
     return;
   }
 
-  // При добавлении — показываем шаг верификации
-  showVerifyStep(usname, { name, usname, category, subscribers: subs,
-    pricead_24: price24 || null, pricead_all: priceAll || null,
-    owner_id: user?.id || 0 });
+  showVerifyStep(usname, {
+    usname, category,
+    name: '',  // заполнится после верификации
+    pricead_24: price24 || null,
+    pricead_all: priceAll || null,
+    owner_id: user?.id || 0
+  });
 }
 
 // ── Шаг верификации ───────────────────────────────────────────────────────────
@@ -374,9 +377,10 @@ async function verifyAndSave() {
     return;
   }
 
-  // Подставляем данные из Telegram
+  // Берём все данные из Telegram
+  channelData.name       = verify.name || channelData.usname;  // ← название из Telegram
   channelData.subscribers = verify.subscribers || 0;
-  channelData.avatar_url  = verify.avatar_url || null;  // ← аватарка
+  channelData.avatar_url  = verify.avatar_url || null;
 
   const result = await apiFetch('/channels', {
     method: 'POST',
@@ -390,12 +394,12 @@ async function verifyAndSave() {
         body: JSON.stringify({ user_id: user.id, channel_id: result.id, premium: false }),
       });
     }
-    showToast('✅ Канал добавлен!', 'success');
+    showToast(`✅ Канал "${channelData.name}" добавлен!`, 'success');
     renderManagePage();
     loadStats();
     window._pendingChannel = null;
   }
-}
+} 
 
 // ── Редактировать канал ───────────────────────────────────────────────────────
 async function editChannel(id) {
@@ -430,19 +434,41 @@ async function deleteChannel(id, name) {
   }
 }
 
-// ── Сброс формы ──────────────────────────────────────────────────────────────
 function resetForm() {
   editingChannelId = null;
-  document.getElementById('fName').value     = '';
-  document.getElementById('fUsname').value   = '';
-  document.getElementById('fCategory').value = '';
-  document.getElementById('fSubs').value     = '';
-  document.getElementById('fPrice24').value  = '';
-  document.getElementById('fPriceAll').value = '';
-  document.getElementById('manageFormTitle').textContent = '➕ Добавить канал';
-  document.getElementById('formSubmitBtn').textContent   = '➕ Добавить';
-  document.getElementById('formCancelBtn').style.display = 'none';
+
+  // Используем ?. перед .value, чтобы скрипт не падал, если поля нет на странице
+  if (document.getElementById('fName'))      document.getElementById('fName').value = '';
+  if (document.getElementById('fUsname'))    document.getElementById('fUsname').value = '';
+  if (document.getElementById('fCategory'))   document.getElementById('fCategory').value = '';
+  if (document.getElementById('fSubs'))      document.getElementById('fSubs').value = '';
+  if (document.getElementById('fPrice24'))   document.getElementById('fPrice24').value = '';
+  if (document.getElementById('fPriceAll'))  document.getElementById('fPriceAll').value = '';
+
+  // Для текстового контента и стилей тоже добавляем проверки
+  const title = document.getElementById('manageFormTitle');
+  if (title) title.textContent = '➕ Добавить канал';
+
+  const submitBtn = document.getElementById('formSubmitBtn');
+  if (submitBtn) submitBtn.textContent = '➕ Добавить';
+
+  const cancelBtn = document.getElementById('formCancelBtn');
+  if (cancelBtn) cancelBtn.style.display = 'none';
 }
+
+// ── Сброс формы ──────────────────────────────────────────────────────────────
+// function resetForm() {
+//   editingChannelId = null;
+//   document.getElementById('fName').value     = '';
+//   document.getElementById('fUsname').value   = '';
+//   document.getElementById('fCategory').value = '';
+//   document.getElementById('fSubs').value     = '';
+//   document.getElementById('fPrice24').value  = '';
+//   document.getElementById('fPriceAll').value = '';
+//   document.getElementById('manageFormTitle').textContent = '➕ Добавить канал';
+//   document.getElementById('formSubmitBtn').textContent   = '➕ Добавить';
+//   document.getElementById('formCancelBtn').style.display = 'none';
+// }
 
 // ── FAV ───────────────────────────────────────────────────────────────────────
 function toggleFav(id, btn) {
