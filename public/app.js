@@ -578,7 +578,7 @@ function toggleFavModal(id, btn) {
 function contactChannel(userId) {
     if (userId) {
         // Формируем ссылку и переходим по ней
-        window.location.href = `tg://user?id=${userId}`;
+        window.location.href = `https://t.me/user?id=${userId}`;
     } else {
         console.error("ID администратора не найден в базе данных");
     }
