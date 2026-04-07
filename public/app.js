@@ -550,10 +550,11 @@ function openModal(id) {
     </div>
     ${ch.desc ? `<p class="modal-desc">${ch.desc}</p>` : ''}
     <div class="modal-btns">
-      <button class="modal-btn modal-btn-primary" onclick="contactChannel(${ch.owner_id});closeModal()">
-        📩 Написать администратору
+      <button class="modal-btn modal-btn-primary" 
+        onclick="window.open('https://t.me/user?id=${ch.owner_id}', '_blank'); closeModal();">
+          📩 Написать администратору
       </button>
-      
+            
     </div>`;
   document.getElementById('modalOverlay').classList.add('open');
   if (tg) tg.HapticFeedback?.impactOccurred('medium');
