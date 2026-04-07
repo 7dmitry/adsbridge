@@ -576,11 +576,13 @@ function toggleFavModal(id, btn) {
 
 // ── Contact / Collab ──────────────────────────────────────────────────────────
 function contactChannel(userId) {
-    if (userId) {
-        // Формируем ссылку и переходим по ней
-        window.location.href = `https://t.me/user?id=${userId}`;
+    const url = `https://t.me/user?id=${userId}`;
+    if (window.Telegram && window.Telegram.WebApp) {
+        // Официальный способ открытия ссылок в Mini Apps
+        window.Telegram.WebApp.openTelegramLink(url);
     } else {
-        console.error("ID администратора не найден в базе данных");
+        // Если открыто просто в браузере
+        window.open(url, '_blank');
     }
 }
 
