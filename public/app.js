@@ -550,11 +550,10 @@ function openModal(id) {
     </div>
     ${ch.desc ? `<p class="modal-desc">${ch.desc}</p>` : ''}
     <div class="modal-btns">
-      <button class="modal-btn modal-btn-primary" 
-        onclick="window.open('https://t.me/user?id=${ch.owner_id}', '_blank'); closeModal();">
-          📩 Написать администратору
+      <button class="modal-btn modal-btn-primary" onclick="contactChannel(${ch.owner_id});closeModal()">
+        📩 Написать администратору
       </button>
-            
+      
     </div>`;
   document.getElementById('modalOverlay').classList.add('open');
   if (tg) tg.HapticFeedback?.impactOccurred('medium');
@@ -577,13 +576,11 @@ function toggleFavModal(id, btn) {
 
 // ── Contact / Collab ──────────────────────────────────────────────────────────
 function contactChannel(userId) {
-    const url = `https://t.me/user?id=${userId}`;
-    if (window.Telegram && window.Telegram.WebApp) {
-        // Официальный способ открытия ссылок в Mini Apps
-        window.Telegram.WebApp.openTelegramLink(url);
+    if (userId) {
+        // Формируем ссылку и переходим по ней
+        window.location.href = "tg://openmessage?user_id=" + userId;
     } else {
-        // Если открыто просто в браузере
-        window.open(url, '_blank');
+        console.error("ID администратора не найден в базе данных");
     }
 }
 
