@@ -212,7 +212,7 @@ async def cmd_start(msg: types.Message):
         "• 📊 Анализа аудитории и ER\n\n"
         f"📺 В каталоге <b>{count} каналов</b>\n\n"
         "📢 Канал: @AdsWay_Official\n"
-        "💬Чат: @AdsWay_Community",
+        "💬Чат: @AdsWay_Community"
     )
 
 # ── /update_subs — ручное обновление (только для админа) ─────────────────────
