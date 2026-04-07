@@ -1,8 +1,8 @@
 // ── Telegram WebApp init ──────────────────────────────────────────────────────
 
-//git add .
-//git commit -m "fix db connection"
-//git push
+// git add .
+// git commit -m "fix db connection"
+// git push
 
 const tg = window.Telegram?.WebApp;
 if (tg) {
@@ -550,7 +550,7 @@ function openModal(id) {
     </div>
     ${ch.desc ? `<p class="modal-desc">${ch.desc}</p>` : ''}
     <div class="modal-btns">
-      <button class="modal-btn modal-btn-primary" onclick="contactChannel(${ch.id});closeModal()">📩 Написать администратору</button>
+      <button class="modal-btn modal-btn-primary" onclick="window.location.href='tg://user?id=${ch.id}';closeModal()">📩 Написать администратору</button>
       ${ch.collab?`<button class="modal-btn modal-btn-secondary" onclick="requestCollab(${ch.id});closeModal()">🤝 Предложить взаимопиар</button>`:''}
       <button class="modal-btn modal-btn-secondary" onclick="toggleFavModal(${ch.id},this)">${isFav?'❤️ В избранном':'🤍 Добавить в избранное'}</button>
     </div>`;
