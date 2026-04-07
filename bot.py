@@ -116,7 +116,7 @@ async def update_channel_subscribers(channel_id: int, usname: str):
         )
         logger.info(f"✅ @{usname} обновлён")
     return subs
-    
+
 async def update_all_subscribers():
     logger.info("🔄 Запуск обновления подписчиков всех каналов...")
     try:
@@ -159,10 +159,10 @@ CAT = {
 }
 
 # ── Клавиатуры ────────────────────────────────────────────────────────────────
-def kb_main():
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="🌐 Открыть каталог", web_app=WebAppInfo(url=WEBAPP_URL))],
-    ], resize_keyboard=True)
+# def kb_main():
+#     return ReplyKeyboardMarkup(keyboard=[
+#         [KeyboardButton(text="🌐 Открыть каталог", web_app=WebAppInfo(url=WEBAPP_URL))],
+#     ], resize_keyboard=True)
 
 def kb_categories():
     b = InlineKeyboardBuilder()
@@ -206,14 +206,13 @@ async def cmd_start(msg: types.Message):
     count = get_channels_count()
     await msg.answer(
         f"👋 Привет, <b>{msg.from_user.first_name}</b>!\n\n"
-        "🚀 <b>AdsBridge</b> — каталог Telegram-каналов для:\n"
+        "🚀 <b>AdsWay</b> — каталог Telegram-каналов для:\n"
         "• 📢 Покупки рекламы у проверенных авторов\n"
         "• 🤝 Взаимного пиара между каналами\n"
         "• 📊 Анализа аудитории и ER\n\n"
         f"📺 В каталоге <b>{count} каналов</b>\n\n"
-        "📢 Канал: @AdsBridge_official\n"
+        "📢 Канал: @AdsWay_Official\n"
         "💬Чат: @AdsWay_Community",
-        reply_markup=kb_main()
     )
 
 # ── /update_subs — ручное обновление (только для админа) ─────────────────────
