@@ -550,14 +550,17 @@ function openModal(id) {
     </div>
     ${ch.desc ? `<p class="modal-desc">${ch.desc}</p>` : ''}
     <div class="modal-btns">
-      <button class="modal-btn modal-btn-primary" onclick="window.location.href='tg://user?id=${ch.id}';closeModal()">📩 Написать администратору</button>
-      ${ch.collab?`<button class="modal-btn modal-btn-secondary" onclick="requestCollab(${ch.id});closeModal()">🤝 Предложить взаимопиар</button>`:''}
-      <button class="modal-btn modal-btn-secondary" onclick="toggleFavModal(${ch.id},this)">${isFav?'❤️ В избранном':'🤍 Добавить в избранное'}</button>
+      <button class="modal-btn modal-btn-primary" onclick="contactChannel(${ch.owner_id});closeModal()">
+        📩 Написать администратору
+      </button>
+      
     </div>`;
   document.getElementById('modalOverlay').classList.add('open');
   if (tg) tg.HapticFeedback?.impactOccurred('medium');
 }
-
+// <button class="modal-btn modal-btn-primary" onclick="contactChannel(${ch.id});closeModal()">📩 Написать администратору</button>
+// ${ch.collab?`<button class="modal-btn modal-btn-secondary" onclick="requestCollab(${ch.id});closeModal()">🤝 Предложить взаимопиар</button>`:''}
+// <button class="modal-btn modal-btn-secondary" onclick="toggleFavModal(${ch.id},this)">${isFav?'❤️ В избранном':'🤍 Добавить в избранное'}</button>
 function closeModal(e) {
   if (!e || e.target === document.getElementById('modalOverlay')) {
     document.getElementById('modalOverlay').classList.remove('open');
@@ -572,12 +575,13 @@ function toggleFavModal(id, btn) {
 }
 
 // ── Contact / Collab ──────────────────────────────────────────────────────────
-function contactChannel(id) {
-  const ch = CHANNELS.find(c => c.id === id);
-  if (!ch) return;
-  sendToBot({ action: 'contact', channel_id: id });
-  showToast(`📩 Запрос к ${ch.name} отправлен!`, 'success');
-  if (tg) tg.HapticFeedback?.notificationOccurred('success');
+function contactChannel(userId) {
+    if (userId) {
+        // Формируем ссылку и переходим по ней
+        window.location.href = `tg://user?id=${userId}`;
+    } else {
+        console.error("ID администратора не найден в базе данных");
+    }
 }
 
 function requestCollab(id) {
