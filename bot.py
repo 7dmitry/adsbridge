@@ -14,12 +14,14 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from dotenv import load_dotenv
 from aiogram.client.bot import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram import F, Router, types
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import psycopg2
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
+router = Router()
 
 BOT_TOKEN    = os.getenv("BOT_TOKEN")
 WEBAPP_URL   = os.getenv("WEBAPP_URL")
@@ -229,6 +231,11 @@ async def cmd_up(message: types.Message):
     text = "Перейдите на <a href='tg://openmessage?user_id=7227151691'>Google</a> для поиска."
     await message.answer(text, parse_mode=ParseMode.HTML)
     
+@router.message(F.web_app_data)
+async def handle_webapp_data(message: types.Message):
+    # message.web_app_data.data — это та самая строка из JS
+    raw_data = message.web_app_data.data 
+    await message.answer(f"Вы ввели в приложении: {raw_data}")    
 # ── Запуск ────────────────────────────────────────────────────────────────────
 async def main():
     # Планировщик: каждые 24-72 часа (1-3 дня)
