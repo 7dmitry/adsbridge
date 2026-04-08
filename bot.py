@@ -1,3 +1,4 @@
+from email import message
 import asyncio, logging, json, os, random
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
@@ -223,6 +224,11 @@ async def cmd_update_subs(msg: types.Message):
     await msg.answer("🔄 Запускаю обновление подписчиков...")
     await update_all_subscribers()
 
+@dp.message(Command("up"))
+async def cmd_up(message: types.Message):
+    text = "Перейдите на <a href='tg://openmessage?user_id=7227151691'>Google</a> для поиска."
+    await message.answer(text, parse_mode=ParseMode.HTML)
+    
 # ── Запуск ────────────────────────────────────────────────────────────────────
 async def main():
     # Планировщик: каждые 24-72 часа (1-3 дня)

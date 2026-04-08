@@ -550,8 +550,8 @@ function openModal(id) {
     </div>
     ${ch.desc ? `<p class="modal-desc">${ch.desc}</p>` : ''}
     <div class="modal-btns">
-      <button class="modal-btn modal-btn-primary" onclick="contactChannel(${ch.owner_id});closeModal()">
-        📩 Написать администратору
+      <button class="modal-btn modal-btn-primary" onclick="contactAdmin('${ch.owner_id}', '${ch.owner_username}'); closeModal()">
+          📩 Написать администратору
       </button>
       
     </div>`;
@@ -574,15 +574,50 @@ function toggleFavModal(id, btn) {
   localStorage.setItem('adhub_favs', JSON.stringify(favorites));
 }
 
-// ── Contact / Collab ──────────────────────────────────────────────────────────
-function contactChannel(userId) {
-    if (userId) {
-        // Формируем ссылку и переходим по ней
-        window.location.href = "tg://openmessage?user_id=" + userId;
+function getContactLink(owner_id, username) {
+    // 1. Проверяем, есть ли юзернейм (не пустой, не null, не undefined)
+    if (username && username.trim() !== "") {
+        // Убираем символ @, если он вдруг есть в строке из БД
+        const cleanUsername = username.replace('@', '');
+        return `https://t.me/${cleanUsername}`;
+    } 
+    
+    // 2. Если юзернейма нет, используем прямую ссылку по ID
+    // Протокол tg:// принудительно открывает приложение Telegram
+    if (owner_id) {
+        return `tg://user?id=${owner_id}`;
+    }
+
+    // 3. Если данных нет совсем
+    return "#";
+}
+
+function contactAdmin(owner_id, username) {
+    const link = getContactLink(owner_id, username);
+    
+    if (link === "#") {
+        alert("Контактные данные администратора не найдены");
+        return;
+    }
+
+    // Если это Telegram Web App, используем их метод для надежности
+    if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.openTelegramLink(link);
     } else {
-        console.error("ID администратора не найден в базе данных");
+        // Для обычного браузера
+        window.location.href = link;
     }
 }
+
+//  ── Contact / Collab ──────────────────────────────────────────────────────────
+// function contactChannel(userId) {
+//     if (userId) {
+//         // Формируем ссылку и переходим по ней
+//         window.location.href = "tg://openmessage?user_id=" + userId;
+//     } else {
+//         console.error("ID администратора не найден в базе данных");
+//     }
+// }
 
 function requestCollab(id) {
   const ch = CHANNELS.find(c => c.id === id);
