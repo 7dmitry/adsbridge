@@ -509,8 +509,8 @@ function clearFavorites() {
 // ── MODAL ─────────────────────────────────────────────────────────────────────
 function getTelegramLink(user) {
   username = user.username || ''; 
-  console.log('Получаем ссылку для пользователя:', user);
-  console.log('Получаем ссылку для пользователя:', username);
+  showToast('Получаем ссылку для пользователя:', user);
+  showToast('Получаем ссылку для пользователя:', username);
   if (!user) return null;
 
   if (username) {
