@@ -235,7 +235,9 @@ async def cmd_up(message: types.Message):
 async def handle_webapp_data(message: types.Message):
     # message.web_app_data.data — это та самая строка из JS
     raw_data = message.web_app_data.data 
-    await message.answer(f"Вы ввели в приложении: {raw_data}")    
+    print("Получены данные из Web App:", raw_data)
+    await message.answer(f"Вы ввели в приложении: {raw_data}")  
+      
 # ── Запуск ────────────────────────────────────────────────────────────────────
 async def main():
     # Планировщик: каждые 24-72 часа (1-3 дня)

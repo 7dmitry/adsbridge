@@ -511,15 +511,15 @@ function getTelegramLink(user) {
   username = user.username; 
   console.log('Получаем ссылку для пользователя:', user);
   console.log('Получаем ссылку для пользователя:', username);
-  if (!user) return null;
+  // if (!user) return null;
 
-  if (username) {
-    // Если есть username — создаём публичную ссылку
-    console.log(`Создаём публичную ссылку для пользователя: ${username}`);
-    return `https://t.me/${username}`;
-  } 
-  else {
-    // Если нет username — ссылка через tg://user?id= (работает только внутри TG)
+  // if (username) {
+  //   // Если есть username — создаём публичную ссылку
+  //   console.log(`Создаём публичную ссылку для пользователя: ${username}`);
+  //   return `https://t.me/${username}`;
+  // } 
+  // else {
+  //   // Если нет username — ссылка через tg://user?id= (работает только внутри TG)
     bot.on('web_app_data', (ctx) => {
 
       // Данные находятся в ctx.message.web_app_data.data
@@ -527,7 +527,7 @@ function getTelegramLink(user) {
       ctx.reply(`Получены данные из Web App: ${data}`);
     });
     // link `tg://user?id=${id}`;
-  }
+  
 }
 
 function openModal(id) {
