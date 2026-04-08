@@ -507,6 +507,26 @@ function clearFavorites() {
 }
 
 // ── MODAL ─────────────────────────────────────────────────────────────────────
+function getTelegramLink(user) {
+  if (!user) return null;
+
+  const { id, username } = user;
+
+  if (username) {
+    // Если есть username — создаём публичную ссылку
+    return `https://t.me/${username}`;
+  } else {
+    // Если нет username — ссылка через tg://user?id= (работает только внутри TG)
+    bot.on('message', (ctx) => {
+      const user = ctx.from; // { id, username, first_name, ... }
+      const link = getTelegramLink(user);
+
+      ctx.reply(`Ссылка на пользователя: ${link}`);
+    });
+    // link `tg://user?id=${id}`;
+  }
+}
+
 function openModal(id) {
   const ch = CHANNELS.find(c => c.id === id);
   if (!ch) return;
