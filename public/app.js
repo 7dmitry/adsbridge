@@ -508,9 +508,13 @@ function clearFavorites() {
 
 // ── MODAL ─────────────────────────────────────────────────────────────────────
 function getTelegramLink(user) {
-  username = user.username; 
-  console.log('Получаем ссылку для пользователя:', user);
-  console.log('Получаем ссылку для пользователя:', username);
+  
+  bot.on('web_app_data', (ctx) => {
+
+      // Данные находятся в ctx.message.web_app_data.data
+      const data = ctx.message.web_app_data.data;
+      ctx.reply(`Получены данные из Web App: ${data}`);
+    });
   // if (!user) return null;
 
   // if (username) {
@@ -520,12 +524,7 @@ function getTelegramLink(user) {
   // } 
   // else {
   //   // Если нет username — ссылка через tg://user?id= (работает только внутри TG)
-    bot.on('web_app_data', (ctx) => {
-
-      // Данные находятся в ctx.message.web_app_data.data
-      const data = ctx.message.web_app_data.data;
-      ctx.reply(`Получены данные из Web App: ${data}`);
-    });
+    
     // link `tg://user?id=${id}`;
   
 }
