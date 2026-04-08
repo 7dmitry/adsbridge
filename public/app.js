@@ -517,15 +517,16 @@ function getTelegramLink(user) {
     // Если есть username — создаём публичную ссылку
     console.log(`Создаём публичную ссылку для пользователя: ${username}`);
     return `https://t.me/${username}`;
-  } else {
+  } 
+  else {
     // Если нет username — ссылка через tg://user?id= (работает только внутри TG)
-    console.log(`Создаём публичную ссылку для пользователя222: ${username}`);
-    bot.on('message', (ctx) => {
-      const user = ctx.from; // { id, username, first_name, ... }
-      const link = getTelegramLink(user);
-
-      ctx.reply(`Ссылка на пользователя: ${link}`);
-    });
+    const tg = window.Telegram.WebApp;
+    const data = {
+        name: "Иван",
+        orderId: 12345
+    };
+    // Данные передаются только строкой
+    tg.sendData(JSON.stringify(data)); 
     // link `tg://user?id=${id}`;
   }
 }
