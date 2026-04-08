@@ -17,6 +17,7 @@ from aiogram.enums import ParseMode
 from aiogram import F, Router, types
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import psycopg2
+import json
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
@@ -231,12 +232,19 @@ async def cmd_up(message: types.Message):
     text = "Перейдите на <a href='tg://openmessage?user_id=7227151691'>Google</a> для поиска."
     await message.answer(text, parse_mode=ParseMode.HTML)
     
-@router.message(F.web_app_data)
+@router.message(F.web_app_data) # Фильтр ловит данные из Mini App
 async def handle_webapp_data(message: types.Message):
-    # message.web_app_data.data — это та самая строка из JS
-    raw_data = message.web_app_data.data 
-    print("Получены данные из Web App:", raw_data)
-    await message.answer(f"Вы ввели в приложении: {raw_data}")  
+    # Данные всегда приходят в виде строки
+    raw_data = message.web_app_data.data
+    
+    try:
+        # Если вы отправляли JSON.stringify() в JS, парсим его здесь
+        data = json.loads(raw_data)
+        name = data.get("name", "Неизвестно")
+        await message.answer(f"Привет, {name}! Данные из приложения получены.")
+    except json.JSONDecodeError:
+        # Если пришла обычная строка, а не JSON
+        await message.answer(f"Получен текст: {raw_data}") 
       
 # ── Запуск ────────────────────────────────────────────────────────────────────
 async def main():

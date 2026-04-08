@@ -507,27 +507,27 @@ function clearFavorites() {
 }
 
 // ── MODAL ─────────────────────────────────────────────────────────────────────
-function getTelegramLink(user) {
-  
-  bot.on('web_app_data', (ctx) => {
+// function getTelegramLink(user) {
+async function sendDataToServer() {
+    const initData = window.Telegram.WebApp.initData; // Строка для проверки безопасности
+    const data = { 
+        item: "Пакет", 
+        price: 100 
+    };
 
-      // Данные находятся в ctx.message.web_app_data.data
-      const data = ctx.message.web_app_data.data;
-      ctx.reply(`Получены данные из Web App: ${data}`);
+    await fetch('https://your-api.com', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            _auth: initData, // Обязательно передаем данные инициализации
+            payload: data
+        })
     });
-  // if (!user) return null;
-
-  // if (username) {
-  //   // Если есть username — создаём публичную ссылку
-  //   console.log(`Создаём публичную ссылку для пользователя: ${username}`);
-  //   return `https://t.me/${username}`;
-  // } 
-  // else {
-  //   // Если нет username — ссылка через tg://user?id= (работает только внутри TG)
     
-    // link `tg://user?id=${id}`;
-  
+    window.Telegram.WebApp.close(); // Закрываем вручную, если нужно
 }
+    // link `tg://user?id=${id}`;
+
 
 function openModal(id) {
   const ch = CHANNELS.find(c => c.id === id);
@@ -572,14 +572,15 @@ function openModal(id) {
     </div>
     ${ch.desc ? `<p class="modal-desc">${ch.desc}</p>` : ''}
     <div class="modal-btns">
-      <button class="modal-btn modal-btn-primary" onclick="getTelegramLink(${ch.owner_id}); closeModal()">
+      <button class="modal-btn modal-btn-primary" onclick="sendDataToServer();">
           📩 Написать администратору
       </button>
-      
+    
     </div>`;
   document.getElementById('modalOverlay').classList.add('open');
   if (tg) tg.HapticFeedback?.impactOccurred('medium');
 }
+//getTelegramLink(${ch.owner_id})  
 // <button class="modal-btn modal-btn-primary" onclick="contactChannel(${ch.id});closeModal()">📩 Написать администратору</button>
 // ${ch.collab?`<button class="modal-btn modal-btn-secondary" onclick="requestCollab(${ch.id});closeModal()">🤝 Предложить взаимопиар</button>`:''}
 // <button class="modal-btn modal-btn-secondary" onclick="toggleFavModal(${ch.id},this)">${isFav?'❤️ В избранном':'🤍 Добавить в избранное'}</button>
