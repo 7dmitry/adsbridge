@@ -570,7 +570,7 @@ function openModal(id) {
     </div>
     ${ch.desc ? `<p class="modal-desc">${ch.desc}</p>` : ''}
     <div class="modal-btns">
-      <button class="modal-btn modal-btn-primary" onclick="contactAdmin('${ch.owner_id}', '${ch.owner_username}'); closeModal()">
+      <button class="modal-btn modal-btn-primary" onclick="getTelegramLink('${ch.owner_id}'); closeModal()">
           📩 Написать администратору
       </button>
       
