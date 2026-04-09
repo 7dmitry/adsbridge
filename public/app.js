@@ -509,25 +509,46 @@ function clearFavorites() {
 // ── MODAL ─────────────────────────────────────────────────────────────────────
 // function getTelegramLink(user) {
 async function sendDataToServer() {
-    const initData = window.Telegram.WebApp.initData; // Строка для проверки безопасности
-    const data = { 
-        item: "Пакет", 
-        price: 100 
+    const tg = window.Telegram.WebApp;
+    
+    // Данные, которые мы хотим отправить
+    const payload = {
+        user_id: tg.initDataUnsafe?.user?.id,
+        username: tg.initDataUnsafe?.user?.username || "unknown",
+        query_id: tg.initData, // Важно для проверки подлинности на сервере
+        message: "Пользователь нажал кнопку 'Написать администратору'"
     };
 
-    await fetch('https://your-api.com', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            _auth: initData, // Обязательно передаем данные инициализации
-            payload: data
-        })
-    });
-    
-    window.Telegram.WebApp.close(); // Закрываем вручную, если нужно
+    try {
+        const response = await fetch('https://railway.app', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            console.log("Данные успешно отправлены на сервер");
+            tg.HapticFeedback.notificationOccurred('success'); // Виброотклик (опционально)
+        } else {
+            console.error("Ошибка сервера:", response.status);
+        }
+    } catch (error) {
+        console.error("Ошибка при отправке fetch:", error);
+    }
 }
     // link `tg://user?id=${id}`;
-
+async function handleAdminClick() {
+          // 1. Ждем, пока данные улетят на сервер
+          await sendDataToServer();
+          
+          // 2. Закрываем модальное окно (ваша функция)
+          closeModal();
+          
+          // 3. Можно закрыть всё Mini App, если нужно
+          // window.Telegram.WebApp.close(); 
+      }
 
 function openModal(id) {
   const ch = CHANNELS.find(c => c.id === id);
@@ -572,10 +593,9 @@ function openModal(id) {
     </div>
     ${ch.desc ? `<p class="modal-desc">${ch.desc}</p>` : ''}
     <div class="modal-btns">
-      <button class="modal-btn modal-btn-primary" onclick="sendDataToServer();">
-          📩 Написать администратору
+      <button class="modal-btn modal-btn-primary" onclick="handleAdminClick()">
+    📩 Написать администратору
       </button>
-    
     </div>`;
   document.getElementById('modalOverlay').classList.add('open');
   if (tg) tg.HapticFeedback?.impactOccurred('medium');
