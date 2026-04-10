@@ -157,7 +157,7 @@ async function renderCollabSettings() {
     <div class="settings-section">
       ${data.map(ch => `
         <div class="setting-item">
-          <div class="ch-avatar">
+          <div class="set-icon">
             ${ch.avatar_url 
               ? `<img src="${ch.avatar_url}" style="width:100%;height:100%;border-radius:12px;object-fit:cover;" onerror="this.parentNode.innerHTML='📢'">`
               : '📢'
