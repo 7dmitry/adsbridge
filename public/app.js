@@ -136,6 +136,70 @@ function fmt(n) {
   return n.toString();
 }
 
+// Загружаем каналы пользователя и рендерим переключатели ВП
+async function renderCollabSettings() {
+  const user = tg?.initDataUnsafe?.user;
+  const list = document.getElementById('collabSettingsList');
+  if (!list) return;
+
+  if (!user?.id) {
+    list.innerHTML = '<div class="empty-state" style="padding:20px"><div class="empty-title" style="font-size:13px">Войдите через бота</div></div>';
+    return;
+  }
+
+  const data = await apiFetch(`/user/${user.id}/channels`);
+  if (!data || data.length === 0) {
+    list.innerHTML = '<div class="empty-state" style="padding:20px"><div class="empty-title" style="font-size:13px">Нет каналов</div></div>';
+    return;
+  }
+
+  list.innerHTML = `
+    <div class="settings-section">
+      ${data.map(ch => `
+        <div class="setting-item">
+          <div class="set-icon green">📢</div>
+          <div class="set-text">
+            <div class="set-title">${ch.name}</div>
+            <div class="set-sub">@${ch.usname}</div>
+          </div>
+          <div class="set-right">
+            <span style="font-size:11px;color:var(--text3);margin-right:6px">ВП</span>
+            <div class="toggle ${ch.collab ? 'on' : ''}" 
+                 id="collab-${ch.id}"
+                 onclick="toggleCollab(${ch.id}, this)">
+            </div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+// Переключить ВП для канала
+async function toggleCollab(channelId, el) {
+  const isOn = el.classList.contains('on');
+  const newVal = !isOn;
+
+  el.classList.toggle('on', newVal);
+  if (tg) tg.HapticFeedback?.impactOccurred('light');
+
+  const result = await apiFetch(`/channels/${channelId}/collab`, {
+    method: 'PATCH',
+    body: JSON.stringify({ collab: newVal }),
+  });
+
+  if (result) {
+    showToast(newVal ? '✅ ВП включён' : '❌ ВП выключен', newVal ? 'success' : '');
+    // Обновляем локальный массив
+    const ch = CHANNELS.find(c => c.id === channelId);
+    if (ch) ch.collab = newVal;
+  } else {
+    // Откатываем если ошибка
+    el.classList.toggle('on', isOn);
+  }
+}
+
+
 // ── Channel card HTML ─────────────────────────────────────────────────────────
 function buildCard(ch) {
   const isFav = favorites.includes(ch.id);
@@ -166,8 +230,8 @@ function buildCard(ch) {
     ${ch.desc ? `<div class="ch-desc">${ch.desc}</div>` : ''}
     <div class="ch-metrics">
       <div class="metric"><span>👥</span><strong>${fmt(ch.subs)}</strong></div>
-      <div class="metric"><span>📊</span><strong>ER ${ch.er}%</strong></div>
-      <div class="metric"><span>📋</span><strong>${ch.collab ? 'ВП доступен' : 'Только реклама'}</strong></div>
+      <div class="metric"><span>🤝</span><strong>ВП ${ch.collab ? '✅' : '❌'}</strong></div>
+      <div class="metric"><span>📋</span><strong>'Реклама'</strong></div>
     </div>
     <div class="ch-bottom">
       <div class="price-badge">💰 ${price24}${priceAll ? ' · ' + priceAll : ''}</div>
@@ -523,8 +587,8 @@ function openModal(id) {
         <div class="modal-stat-key">Подписчиков</div>
       </div>
       <div class="modal-stat">
-        <div class="modal-stat-val">${ch.er}%</div>
-        <div class="modal-stat-key">ER (вовлечённость)</div>
+        <div class="modal-stat-val">${ch.collab ? '✅ Да' : '❌ Нет'}</div>
+        <div class="modal-stat-key">Взаимопиар</div>
       </div>
       <div class="modal-stat">
         <div class="modal-stat-val">${price24str}</div>
@@ -596,6 +660,8 @@ function initSettings() {
     const el = document.getElementById(k);
     if (el) el.classList.toggle('on', !!settings[k]);
   });
+
+  renderCollabSettings();
 }
 
 function toggleSetting(key) {

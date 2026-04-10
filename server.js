@@ -313,6 +313,26 @@ app.post('/api/send-message', async (req, res) => {
   }
 });
 
+app.patch('/api/channels/:id/collab', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { collab } = req.body;
+
+    const result = await pool.query(
+      'UPDATE channels SET collab = $1 WHERE id = $2 RETURNING *',
+      [collab, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Канал не найден' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(process.env.PORT, () => {
   console.log(`✅ Сервер запущен`);
 });

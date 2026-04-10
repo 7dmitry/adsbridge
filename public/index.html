@@ -264,15 +264,11 @@
         </div>
       </div>
 
-      <p class="section-title">Уведомления</p>
-      <div class="settings-section">
-        <div class="setting-item" onclick="toggleSetting('notifNew')">
-          <div class="set-icon blue">🔔</div>
-          <div class="set-text">
-            <div class="set-title">Новые каналы</div>
-            <div class="set-sub">Оповещать о новых каналах в каталоге</div>
-          </div>
-          <div class="set-right"><div class="toggle on" id="notifNew"></div></div>
+      <p class="section-title">Мои каналы</p>
+      <div id="collabSettingsList">
+        <!-- сюда JS вставит переключатели для каждого канала -->
+        <div class="empty-state" style="padding:20px">
+          <div class="empty-title" style="font-size:13px">Загрузка каналов…</div>
         </div>
       </div>
       <p class="section-title">Аккаунт</p>
