@@ -507,37 +507,27 @@ function clearFavorites() {
 }
 
 // ── MODAL ─────────────────────────────────────────────────────────────────────
-// function getTelegramLink(user) {
-// async function sendDataToServer() {
-//     const tg = window.Telegram.WebApp;
-    
-//     // Данные, которые мы хотим отправить
-//     const payload = {
-//         user_id: tg.initDataUnsafe?.user?.id,
-//         username: tg.initDataUnsafe?.user?.username || "unknown",
-//         query_id: tg.initData, // Важно для проверки подлинности на сервере
-//         message: "Пользователь нажал кнопку 'Написать администратору'"
-//     };
+async function contactChannel(channelId) {
+  const user = tg?.initDataUnsafe?.user;
 
-//     try {
-//         const response = await fetch('https://railway.app', {
-//             method: 'POST',
-//             headers: {
-//                 'Content-Type': 'application/json'
-//             },
-//             body: JSON.stringify(payload)
-//         });
+  if (!user?.id) {
+    showToast('⚠️ Откройте приложение через бота', 'error');
+    return;
+  }
 
-//         if (response.ok) {
-//             console.log("Данные успешно отправлены на сервер");
-//             tg.HapticFeedback.notificationOccurred('success'); // Виброотклик (опционально)
-//         } else {
-//             console.error("Ошибка сервера:", response.status);
-//         }
-//     } catch (error) {
-//         console.error("Ошибка при отправке fetch:", error);
-//     }
-// }
+  const result = await apiFetch('/send-message', {
+    method: 'POST',
+    body: JSON.stringify({
+      user_id:    user.id,
+      channel_id: channelId,
+    }),
+  });
+
+  if (result?.ok) {
+    showToast('📩 Сообщение отправлено в бот!', 'success');
+    if (tg) tg.HapticFeedback?.notificationOccurred('success');
+  }
+}
 
 function openModal(id) {
   const ch = CHANNELS.find(c => c.id === id);
@@ -582,8 +572,8 @@ function openModal(id) {
     </div>
     ${ch.desc ? `<p class="modal-desc">${ch.desc}</p>` : ''}
     <div class="modal-btns">
-      <button class="modal-btn modal-btn-primary" onclick="handleAdminClick()">
-    📩 Написать администратору
+      <button class="modal-btn modal-btn-primary" onclick="contactChannel(${ch.id});closeModal()">
+        📩 Написать администратору
       </button>
     </div>`;
   document.getElementById('modalOverlay').classList.add('open');

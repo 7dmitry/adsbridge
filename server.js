@@ -2,9 +2,11 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const pool = require('./db');
+const BOT_TOKEN = process.env.BOT_TOKEN;
 require('dotenv').config();
 console.log('DB_HOST:', process.env.DB_HOST);
 console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'есть' : 'нет');
+console.log('BOT_TOKEN:', BOT_TOKEN ? 'есть' : 'нет');
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -212,8 +214,6 @@ app.post('/api/verify-channel', async (req, res) => {
     const countData = await countRes.json();
     const subscribers = countData.ok ? countData.result : 0;
 
-    const channelName = chatData.ok ? chatData.result.title : null;
-
     // Получаем аватарку
     const chatRes = await fetch(
       `https://api.telegram.org/bot${process.env.BOT_TOKEN}/getChat`,
@@ -224,6 +224,7 @@ app.post('/api/verify-channel', async (req, res) => {
       }
     );
     const chatData = await chatRes.json();
+    const channelName = chatData.ok ? chatData.result.title : null;
     let avatar_url = null;
 
     if (chatData.ok && chatData.result.photo) {
@@ -245,6 +246,64 @@ app.post('/api/verify-channel', async (req, res) => {
     res.json({ verified: true, role: status, subscribers, avatar_url, name: channelName });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/send-message', async (req, res) => {
+  const { user_id, channel_id } = req.body;
+
+  if (!user_id || !channel_id) {
+    return res.status(400).json({ error: 'Не хватает параметров' });
+  }
+
+  try {
+    // Берём канал из БД (адаптируй под свой ORM/query)
+    const result = await pool.query('SELECT * FROM channels WHERE id = $1', [channel_id]);
+    const ch = result.rows[0];
+
+    if (!ch) return res.status(404).json({ error: 'Канал не найден' });
+
+    // Получаем username владельца
+    const ownerResult = await pool.query('SELECT username FROM users WHERE id = $1', [ch.owner_id]);
+
+    const price24  = ch.pricead_24  ? `$${ch.pricead_24}`  : '—';
+    const priceAll = ch.pricead_all ? `$${ch.pricead_all}` : '—';
+
+    const text =
+      `📢 *${ch.name}*\n` +
+      `@${ch.usname}\n\n` +
+      `💰 Реклама 24ч: ${price24}\n` +
+      `💰 Реклама навсегда: ${priceAll}\n` +
+      `👥 Подписчиков: ${ch.subscribers || 0}\n\n` +
+      `Напишите администратору канала 👇`;
+
+    const keyboard = ownerUsername
+      ? { inline_keyboard: [[{ text: '✍️ Написать администратору', url: `https://t.me/${ownerUsername}` }]] }
+      : undefined;
+
+    const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: user_id,
+        text,
+        parse_mode: 'Markdown',
+        ...(keyboard && { reply_markup: keyboard }),
+      }),
+    });
+
+    const tgData = await tgRes.json();
+
+    if (!tgData.ok) {
+      console.error('Telegram API error:', tgData);
+      return res.status(500).json({ error: tgData.description });
+    }
+
+    res.json({ ok: true });
+
+  } catch (err) {
+    console.error('send-message error:', err);
+    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
   }
 });
 
