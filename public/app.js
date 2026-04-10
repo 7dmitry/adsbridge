@@ -508,47 +508,36 @@ function clearFavorites() {
 
 // ── MODAL ─────────────────────────────────────────────────────────────────────
 // function getTelegramLink(user) {
-async function sendDataToServer() {
-    const tg = window.Telegram.WebApp;
+// async function sendDataToServer() {
+//     const tg = window.Telegram.WebApp;
     
-    // Данные, которые мы хотим отправить
-    const payload = {
-        user_id: tg.initDataUnsafe?.user?.id,
-        username: tg.initDataUnsafe?.user?.username || "unknown",
-        query_id: tg.initData, // Важно для проверки подлинности на сервере
-        message: "Пользователь нажал кнопку 'Написать администратору'"
-    };
+//     // Данные, которые мы хотим отправить
+//     const payload = {
+//         user_id: tg.initDataUnsafe?.user?.id,
+//         username: tg.initDataUnsafe?.user?.username || "unknown",
+//         query_id: tg.initData, // Важно для проверки подлинности на сервере
+//         message: "Пользователь нажал кнопку 'Написать администратору'"
+//     };
 
-    try {
-        const response = await fetch('https://railway.app', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
+//     try {
+//         const response = await fetch('https://railway.app', {
+//             method: 'POST',
+//             headers: {
+//                 'Content-Type': 'application/json'
+//             },
+//             body: JSON.stringify(payload)
+//         });
 
-        if (response.ok) {
-            console.log("Данные успешно отправлены на сервер");
-            tg.HapticFeedback.notificationOccurred('success'); // Виброотклик (опционально)
-        } else {
-            console.error("Ошибка сервера:", response.status);
-        }
-    } catch (error) {
-        console.error("Ошибка при отправке fetch:", error);
-    }
-}
-    // link `tg://user?id=${id}`;
-async function handleAdminClick() {
-          // 1. Ждем, пока данные улетят на сервер
-          await sendDataToServer();
-          
-          // 2. Закрываем модальное окно (ваша функция)
-          closeModal();
-          
-          // 3. Можно закрыть всё Mini App, если нужно
-          // window.Telegram.WebApp.close(); 
-      }
+//         if (response.ok) {
+//             console.log("Данные успешно отправлены на сервер");
+//             tg.HapticFeedback.notificationOccurred('success'); // Виброотклик (опционально)
+//         } else {
+//             console.error("Ошибка сервера:", response.status);
+//         }
+//     } catch (error) {
+//         console.error("Ошибка при отправке fetch:", error);
+//     }
+// }
 
 function openModal(id) {
   const ch = CHANNELS.find(c => c.id === id);
@@ -615,14 +604,6 @@ function toggleFavModal(id, btn) {
   if (idx === -1) { favorites.push(id); btn.textContent = '❤️ В избранном'; showToast('❤️ Добавлено', 'success'); }
   else { favorites.splice(idx,1); btn.textContent = '🤍 Добавить в избранное'; showToast('🤍 Удалено'); }
   localStorage.setItem('adhub_favs', JSON.stringify(favorites));
-}
-
-function requestCollab(id) {
-  const ch = CHANNELS.find(c => c.id === id);
-  if (!ch) return;
-  sendToBot({ action: 'collab', channel_id: id });
-  showToast(`🤝 Запрос на ВП с ${ch.name} отправлен!`, 'success');
-  if (tg) tg.HapticFeedback?.notificationOccurred('success');
 }
 
 // ── Donate ────────────────────────────────────────────────────────────────────
