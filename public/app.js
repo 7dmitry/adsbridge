@@ -157,13 +157,18 @@ async function renderCollabSettings() {
     <div class="settings-section">
       ${data.map(ch => `
         <div class="setting-item">
-          <div class="set-icon green">📢</div>
+          <div class="ch-avatar">
+            ${ch.avatar 
+              ? `<img src="${ch.avatar}" style="width:100%;height:100%;border-radius:12px;object-fit:cover;" onerror="this.parentNode.innerHTML='📢'">`
+              : '📢'
+            }
+          </div>
           <div class="set-text">
             <div class="set-title">${ch.name}</div>
             <div class="set-sub">@${ch.usname}</div>
           </div>
           <div class="set-right">
-            <span style="font-size:11px;color:var(--text3);margin-right:6px">ВП</span>
+            <span style="font-size:11px;color:var(--text3);margin-right:6px">ВзаимоПиар</span>
             <div class="toggle ${ch.collab ? 'on' : ''}" 
                  id="collab-${ch.id}"
                  onclick="toggleCollab(${ch.id}, this)">
