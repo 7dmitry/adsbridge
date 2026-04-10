@@ -23,7 +23,6 @@
     <div class="header-right">
       <span class="header-badge" id="totalCount">0</span>
       <button class="header-btn" onclick="showPage('search')" title="Поиск">🔍</button>
-      <button class="header-btn" id="favBtn" title="Избранное" onclick="toggleFavPage()">❤️</button>
     </div>
   </header>
 
@@ -192,8 +191,10 @@
 
     <!-- ════════ DONATE ════════ -->
     <div class="page" id="page-donate">
-
-      <div class="donate-hero">
+      <h2>
+        Скоро здесь будет возможность поддержать проект донатом и получить 💎 Премиум-статус для своих каналов!
+      </h2>
+      <!-- <div class="donate-hero">
         <span class="donate-emoji">💎</span>
         <h2>Поддержи AdsWay</h2>
         <p>Твой донат помогает развивать каталог, добавлять новые функции и держать сервис бесплатным</p>
@@ -249,7 +250,7 @@
       <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:15px;padding:14px" onclick="sendDonate()">
         💎 Задонатить <span id="donateBtnAmount">250 Stars</span>
       </button>
-    </div>
+    </div> -->
 
     <!-- ════════ SETTINGS ════════ -->
     <div class="page" id="page-settings">
@@ -273,24 +274,7 @@
           </div>
           <div class="set-right"><div class="toggle on" id="notifNew"></div></div>
         </div>
-        <div class="setting-item" onclick="toggleSetting('notifCollab')">
-          <div class="set-icon purple">🤝</div>
-          <div class="set-text">
-            <div class="set-title">Запросы на ВП</div>
-            <div class="set-sub">Уведомления о новых заявках</div>
-          </div>
-          <div class="set-right"><div class="toggle on" id="notifCollab"></div></div>
-        </div>
-        <div class="setting-item" onclick="toggleSetting('notifPrice')">
-          <div class="set-icon green">💰</div>
-          <div class="set-text">
-            <div class="set-title">Изменение цен</div>
-            <div class="set-sub">Уведомлять об изменении цен на рекламу</div>
-          </div>
-          <div class="set-right"><div class="toggle" id="notifPrice"></div></div>
-        </div>
       </div>
-
       <p class="section-title">Аккаунт</p>
       <div class="settings-section">
         <div class="setting-item" onclick="showPage('manage')">
@@ -301,22 +285,6 @@
           </div>
           <div class="set-right">›</div>
         </div>
-        <div class="setting-item" onclick="toggleFavPage()">
-          <div class="set-icon green">❤️</div>
-          <div class="set-text">
-            <div class="set-title">Избранное</div>
-            <div class="set-sub">Сохранённые каналы</div>
-          </div>
-          <div class="set-right">›</div>
-        </div>
-        <div class="setting-item" onclick="clearFavorites()">
-          <div class="set-icon red">🗑</div>
-          <div class="set-text">
-            <div class="set-title">Очистить избранное</div>
-            <div class="set-sub">Удалить все сохранённые каналы</div>
-          </div>
-          <div class="set-right" style="color:var(--red)">›</div>
-        </div>
       </div>
 
       <p class="section-title">О приложении</p>
@@ -326,22 +294,26 @@
           <div class="set-text"><div class="set-title">Версия</div></div>
           <div class="set-right">v1.0.0</div>
         </div>
-        <div class="setting-item" onclick="showToast('📢 @AdsWay_official', 'success')">
-          <div class="set-icon purple">📢</div>
-          <div class="set-text">
-            <div class="set-title">Наш канал</div>
-            <div class="set-sub">@AdsWay_official</div>
+        <a href="https://t.me/+g2HZlLoK-7gyMmEy" target="_blank" style="text-decoration:none;color:inherit">
+          <div class="setting-item" onclick="showToast('📢 @AdsWay_official', 'success')">
+            <div class="set-icon purple">📢</div>
+            <div class="set-text">
+              <div class="set-title">Наш канал</div>
+              <div class="set-sub">@AdsWay_official</div>
+            </div>
+            <div class="set-right">›</div>
           </div>
-          <div class="set-right">›</div>
-        </div>
-        <div class="setting-item" onclick="showToast('💬 @AdsWay_support', 'success')">
-          <div class="set-icon green">💬</div>
-          <div class="set-text">
-            <div class="set-title">Поддержка</div>
-            <div class="set-sub">@AdsWay_support</div>
+        </a>  
+        <a href="https://t.me/+y_w35van0oQ5ZDYy" target="_blank" style="text-decoration:none;color:inherit">
+          <div class="setting-item" onclick="showToast('💬 @AdsWay_support', 'success')">
+            <div class="set-icon green">💬</div>
+            <div class="set-text">
+              <div class="set-title">Поддержка</div>
+              <div class="set-sub">@AdsWay_support</div>
+            </div>
+            <div class="set-right">›</div>
           </div>
-          <div class="set-right">›</div>
-        </div>
+        </a>  
       </div>
 
     </div>
