@@ -158,8 +158,8 @@ async function renderCollabSettings() {
       ${data.map(ch => `
         <div class="setting-item">
           <div class="ch-avatar">
-            ${ch.avatar 
-              ? `<img src="${ch.avatar}" style="width:100%;height:100%;border-radius:12px;object-fit:cover;" onerror="this.parentNode.innerHTML='📢'">`
+            ${ch.avatar_url 
+              ? `<img src="${ch.avatar_url}" style="width:100%;height:100%;border-radius:12px;object-fit:cover;" onerror="this.parentNode.innerHTML='📢'">`
               : '📢'
             }
           </div>
@@ -168,7 +168,7 @@ async function renderCollabSettings() {
             <div class="set-sub">@${ch.usname}</div>
           </div>
           <div class="set-right">
-            <span style="font-size:11px;color:var(--text3);margin-right:6px">ВзаимоПиар</span>
+            <span style="font-size:11px;color:var(--text3);margin-right:6px">ВП(Взаимопиар)</span>
             <div class="toggle ${ch.collab ? 'on' : ''}" 
                  id="collab-${ch.id}"
                  onclick="toggleCollab(${ch.id}, this)">
