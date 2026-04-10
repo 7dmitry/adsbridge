@@ -257,14 +257,20 @@ app.post('/api/send-message', async (req, res) => {
   }
 
   try {
-    // Берём канал из БД (адаптируй под свой ORM/query)
     const result = await pool.query('SELECT * FROM channels WHERE id = $1', [channel_id]);
     const ch = result.rows[0];
-
     if (!ch) return res.status(404).json({ error: 'Канал не найден' });
 
-    // Получаем username владельца
-    const ownerResult = await pool.query('SELECT username FROM users WHERE id = $1', [ch.owner_id]);
+    // Ищем владельца — если не найден, используем usname канала
+    let ownerUsername = ch.usname; // fallback — пишем в канал напрямую
+    if (ch.owner_id) {
+      const ownerResult = await pool.query(
+        'SELECT username FROM users WHERE id = $1', [ch.owner_id]
+      );
+      if (ownerResult.rows[0]?.username) {
+        ownerUsername = ownerResult.rows[0].username;
+      }
+    }
 
     const price24  = ch.pricead_24  ? `$${ch.pricead_24}`  : '—';
     const priceAll = ch.pricead_all ? `$${ch.pricead_all}` : '—';
@@ -277,10 +283,6 @@ app.post('/api/send-message', async (req, res) => {
       `👥 Подписчиков: ${ch.subscribers || 0}\n\n` +
       `Напишите администратору канала 👇`;
 
-    const keyboard = ownerUsername
-      ? { inline_keyboard: [[{ text: '✍️ Написать администратору', url: `https://t.me/${ownerUsername}` }]] }
-      : undefined;
-
     const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -288,14 +290,18 @@ app.post('/api/send-message', async (req, res) => {
         chat_id: user_id,
         text,
         parse_mode: 'Markdown',
-        ...(keyboard && { reply_markup: keyboard }),
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '✍️ Написать администратору', url: `https://t.me/${ownerUsername}` }
+          ]]
+        }
       }),
     });
 
     const tgData = await tgRes.json();
+    console.log('Telegram response:', tgData);
 
     if (!tgData.ok) {
-      console.error('Telegram API error:', tgData);
       return res.status(500).json({ error: tgData.description });
     }
 
@@ -303,7 +309,7 @@ app.post('/api/send-message', async (req, res) => {
 
   } catch (err) {
     console.error('send-message error:', err);
-    res.status(500).json({ error: 'Внутренняя ошибка сервера' });
+    res.status(500).json({ error: err.message });
   }
 });
 
