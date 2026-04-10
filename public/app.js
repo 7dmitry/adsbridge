@@ -172,7 +172,6 @@ function buildCard(ch) {
     <div class="ch-bottom">
       <div class="price-badge">💰 ${price24}${priceAll ? ' · ' + priceAll : ''}</div>
       <div class="ch-action-btns">
-        <button class="ch-btn ch-btn-ghost" onclick="event.stopPropagation();toggleFav(${ch.id},this)">${isFav ? '❤️' : '🤍'}</button>
         <button class="ch-btn ch-btn-primary" onclick="event.stopPropagation();contactChannel(${ch.id})">📩 Связаться</button>
       </div>
     </div>
@@ -471,40 +470,6 @@ function resetForm() {
 // }
 
 // ── FAV ───────────────────────────────────────────────────────────────────────
-function toggleFav(id, btn) {
-  const idx = favorites.indexOf(id);
-  if (idx === -1) {
-    favorites.push(id);
-    btn.textContent = '❤️';
-    showToast('❤️ Добавлено в избранное', 'success');
-  } else {
-    favorites.splice(idx, 1);
-    btn.textContent = '🤍';
-    showToast('🤍 Удалено из избранного');
-  }
-  localStorage.setItem('adhub_favs', JSON.stringify(favorites));
-  sendToBot({action: 'favorite', channel_id: id});
-}
-
-function toggleFavPage() {
-  showFavPage = !showFavPage;
-  showPage('home');
-  const list = document.getElementById('homeList');
-  if (showFavPage) {
-    document.getElementById('favBtn').style.color = '#f87171';
-    const favChs = CHANNELS.filter(c => favorites.includes(c.id));
-    list.innerHTML = favChs.length ? favChs.map(buildCard).join('') : emptyState('Избранное пусто', 'Добавляйте каналы нажав 🤍');
-  } else {
-    document.getElementById('favBtn').style.color = '';
-    renderHome('all');
-  }
-}
-
-function clearFavorites() {
-  favorites = [];
-  localStorage.removeItem('adhub_favs');
-  showToast('🗑 Избранное очищено');
-}
 
 // ── MODAL ─────────────────────────────────────────────────────────────────────
 async function contactChannel(channelId) {
@@ -579,6 +544,7 @@ function openModal(id) {
   document.getElementById('modalOverlay').classList.add('open');
   if (tg) tg.HapticFeedback?.impactOccurred('medium');
 }
+
 //getTelegramLink(${ch.owner_id})  
 // <button class="modal-btn modal-btn-primary" onclick="contactChannel(${ch.id});closeModal()">📩 Написать администратору</button>
 // ${ch.collab?`<button class="modal-btn modal-btn-secondary" onclick="requestCollab(${ch.id});closeModal()">🤝 Предложить взаимопиар</button>`:''}
@@ -587,13 +553,6 @@ function closeModal(e) {
   if (!e || e.target === document.getElementById('modalOverlay')) {
     document.getElementById('modalOverlay').classList.remove('open');
   }
-}
-
-function toggleFavModal(id, btn) {
-  const idx = favorites.indexOf(id);
-  if (idx === -1) { favorites.push(id); btn.textContent = '❤️ В избранном'; showToast('❤️ Добавлено', 'success'); }
-  else { favorites.splice(idx,1); btn.textContent = '🤍 Добавить в избранное'; showToast('🤍 Удалено'); }
-  localStorage.setItem('adhub_favs', JSON.stringify(favorites));
 }
 
 // ── Donate ────────────────────────────────────────────────────────────────────
