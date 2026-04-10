@@ -230,8 +230,8 @@ function buildCard(ch) {
     ${ch.desc ? `<div class="ch-desc">${ch.desc}</div>` : ''}
     <div class="ch-metrics">
       <div class="metric"><span>👥</span><strong>${fmt(ch.subs)}</strong></div>
-      <div class="metric"><span>🤝</span><strong>ВП ${ch.collab ? '✅' : '❌'}</strong></div>
-      <div class="metric"><span>📋</span><strong>'Реклама'</strong></div>
+      <div class="metric"><strong>ВП ${ch.collab ? '✅' : '❌'}</strong></div>
+      <div class="metric"><span>📋</span><strong>Реклама</strong></div>
     </div>
     <div class="ch-bottom">
       <div class="price-badge">💰 ${price24}${priceAll ? ' · ' + priceAll : ''}</div>
