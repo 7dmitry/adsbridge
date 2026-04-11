@@ -188,6 +188,13 @@ app.put('/api/channels/:id', requireTgAuth, async (req, res) => {
     const { id } = req.params;
     const { name, usname, category, subscribers, pricead_24, pricead_all, user_id } = req.body;
 
+    console.log('PUT owner check:', {
+      owner_id: check?.rows[0]?.owner_id,
+      owner_id_type: typeof check?.rows[0]?.owner_id,
+      user_id,
+      user_id_type: typeof user_id
+    });
+
     if (!user_id) {
       return res.status(401).json({ error: 'Не авторизован' });
     }
