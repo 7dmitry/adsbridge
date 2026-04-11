@@ -8,6 +8,7 @@ console.log('DB_HOST:', process.env.DB_HOST);
 console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'есть' : 'нет');
 console.log('BOT_TOKEN:', BOT_TOKEN ? 'есть' : 'нет');
 const app = express();
+app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json());
 
