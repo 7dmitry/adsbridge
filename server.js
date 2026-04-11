@@ -65,9 +65,8 @@ function verifyTelegramInitData(initData) {
 function requireTgAuth(req, res, next) {
   const initData = req.headers['x-telegram-init-data'];
 
-  // В режиме разработки (браузер без Telegram) пропускаем
+  // POST/PUT/DELETE/PATCH без initData — блокируем
   if (!initData || initData === '') {
-    if (process.env.NODE_ENV === 'development') return next();
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
