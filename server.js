@@ -207,7 +207,7 @@ app.put('/api/channels/:id', requireTgAuth, async (req, res) => {
       return res.status(404).json({ error: 'Канал не найден' });
     }
 
-    if (check.rows[0].owner_id !== parseInt(user_id)) {
+    if (String(check.rows[0].owner_id) !== String(user_id)) {
       return res.status(403).json({ error: 'Нет доступа' });
     }
 
@@ -466,7 +466,7 @@ app.patch('/api/channels/:id/collab', requireTgAuth, async (req, res) => {
       return res.status(404).json({ error: 'Канал не найден' });
     }
 
-    if (check.rows[0].owner_id !== parseInt(user_id)) {
+    if (String(check.rows[0].owner_id) !== String(user_id)) {
       return res.status(403).json({ error: 'Нет доступа' });
     }
 
