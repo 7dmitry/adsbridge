@@ -186,18 +186,16 @@ app.put('/api/channels/:id', requireTgAuth, async (req, res) => {
     const { id } = req.params;
     const { name, usname, category, subscribers, pricead_24, pricead_all, user_id } = req.body;
 
-    console.log('PUT body:', req.body);
-
     if (!user_id) {
       return res.status(401).json({ error: 'Не авторизован' });
     }
-    console.log('checking owner...');
+    
     // Проверяем что канал принадлежит этому пользователю
     const check = await pool.query(
       'SELECT owner_id FROM channels WHERE id = $1',
       [id]
     );
-    console.log('owner:', check.rows[0]);
+    
     if (check.rows.length === 0) {
       return res.status(404).json({ error: 'Канал не найден' });
     }
@@ -205,14 +203,14 @@ app.put('/api/channels/:id', requireTgAuth, async (req, res) => {
     if (String(check.rows[0].owner_id) !== String(user_id)) {
       return res.status(403).json({ error: 'Нет доступа' });
     }
-    console.log('updating...');
+    
     const result = await pool.query(
       `UPDATE channels SET name=$1, usname=$2, category=$3, 
       pricead_24=$4, pricead_all=$5 
       WHERE id=$6 RETURNING *`,
       [name, usname, category, pricead_24 || null, pricead_all || null, id]
     );
-    console.log('updated:', result.rows[0]);
+    
     res.json(result.rows[0]);
   } catch (err) {
     console.error('PUT error:', err.message);
@@ -422,7 +420,6 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
     });
 
     const tgData = await tgRes.json();
-    console.log('Telegram response:', tgData);
 
     if (!tgData.ok) {
       return res.status(500).json({ error: tgData.description });
@@ -441,8 +438,6 @@ app.patch('/api/channels/:id/collab', requireTgAuth, async (req, res) => {
     const { id } = req.params;
     const { collab, user_id } = req.body;
 
-    console.log('PATCH collab:', { id, collab, user_id, body: req.body });
-
     if (!user_id) {
       return res.status(401).json({ error: 'Не авторизован' });
     }
@@ -450,13 +445,6 @@ app.patch('/api/channels/:id/collab', requireTgAuth, async (req, res) => {
     const check = await pool.query(
       'SELECT owner_id FROM channels WHERE id = $1', [id]
     );
-
-    console.log('owner check:', {   // ← добавь сюда
-      owner_id: check.rows[0]?.owner_id, 
-      owner_id_type: typeof check.rows[0]?.owner_id,
-      user_id, 
-      user_id_type: typeof user_id 
-    });
 
     if (check.rows.length === 0) {
       return res.status(404).json({ error: 'Канал не найден' });
