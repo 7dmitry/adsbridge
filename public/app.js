@@ -320,6 +320,43 @@ function toggleFilters() {
 
 // ── MANAGE PAGE ───────────────────────────────────────────────────────────────
 async function renderManagePage() {
+  document.getElementById('manageFormCard').innerHTML = `
+    <div class="manage-form-title" id="manageFormTitle">➕ Добавить канал</div>
+    <div class="form-group">
+      <label class="form-label">Username (без @) *</label>
+      <input class="form-input" id="fUsname" placeholder="techpulse">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Категория *</label>
+      <select class="form-input" id="fCategory">
+        <option value="">— Выберите —</option>
+        <option value="tech">🖥️ Технологии</option>
+        <option value="business">💼 Бизнес</option>
+        <option value="finance">📈 Финансы</option>
+        <option value="games">🎮 Игры</option>
+        <option value="art">🎨 Творчество</option>
+        <option value="news">📰 Новости</option>
+        <option value="entertainment">🎬 Развлечения</option>
+        <option value="edu">🎓 Образование</option>
+        <option value="other">🌍 Другое</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Цена рекламы 24ч ($)</label>
+        <input class="form-input" id="fPrice24" placeholder="100">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Цена навсегда ($)</label>
+        <input class="form-input" id="fPriceAll" placeholder="200">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" id="formCancelBtn" onclick="resetForm()" style="display:none">Отмена</button>
+      <button class="btn btn-primary" id="formSubmitBtn" onclick="submitChannel()" style="flex:1;justify-content:center">➕ Добавить</button>
+    </div>
+  `;
+  
   resetForm();
   const user = tg?.initDataUnsafe?.user;
   const userId = user?.id;
