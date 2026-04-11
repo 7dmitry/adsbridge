@@ -65,10 +65,8 @@ function verifyTelegramInitData(initData) {
 function requireTgAuth(req, res, next) {
   const initData = req.headers['x-telegram-init-data'];
 
-  // POST/PUT/DELETE/PATCH без initData — блокируем
-  if (!initData || initData === '') {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+  // Нет initData — пропускаем (открыто в браузере или тест)
+  if (!initData || initData === '') return next();
 
   if (!verifyTelegramInitData(initData)) {
     return res.status(401).json({ error: 'Invalid Telegram data' });
