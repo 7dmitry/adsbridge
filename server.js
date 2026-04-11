@@ -215,6 +215,7 @@ app.put('/api/channels/:id', requireTgAuth, async (req, res) => {
     console.log('updated:', result.rows[0]);
     res.json(result.rows[0]);
   } catch (err) {
+    console.error('PUT error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
