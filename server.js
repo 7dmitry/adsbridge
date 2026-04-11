@@ -445,6 +445,8 @@ app.patch('/api/channels/:id/collab', requireTgAuth, async (req, res) => {
     const { id } = req.params;
     const { collab, user_id } = req.body;
 
+    console.log('PATCH collab:', { id, collab, user_id, body: req.body });
+
     if (!user_id) {
       return res.status(401).json({ error: 'Не авторизован' });
     }
