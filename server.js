@@ -208,9 +208,9 @@ app.put('/api/channels/:id', requireTgAuth, async (req, res) => {
     console.log('updating...');
     const result = await pool.query(
       `UPDATE channels SET name=$1, usname=$2, category=$3, 
-       subscribers=$4, pricead_24=$5, pricead_all=$6 
-       WHERE id=$7 RETURNING *`,
-      [name, usname, category, subscribers, pricead_24, pricead_all, id]
+      pricead_24=$4, pricead_all=$5 
+      WHERE id=$6 RETURNING *`,
+      [name, usname, category, pricead_24 || null, pricead_all || null, id]
     );
     console.log('updated:', result.rows[0]);
     res.json(result.rows[0]);
