@@ -202,7 +202,7 @@ app.put('/api/channels/:id', requireTgAuth, async (req, res) => {
       return res.status(404).json({ error: 'Канал не найден' });
     }
 
-    if (check.rows[0].owner_id !== user_id) {
+    if (check.rows[0].owner_id !== parseInt(user_id)) {
       return res.status(403).json({ error: 'Нет доступа' });
     }
 
@@ -230,7 +230,7 @@ app.delete('/api/channels/:id', requireTgAuth, async (req, res) => {
 
     const result = await pool.query(
       'DELETE FROM channels WHERE id = $1 AND owner_id = $2 RETURNING *',
-      [id, user_id]
+      [id, parseInt(user_id)]
     );
 
     if (result.rowCount === 0) {
@@ -452,7 +452,7 @@ app.patch('/api/channels/:id/collab', requireTgAuth, async (req, res) => {
       return res.status(404).json({ error: 'Канал не найден' });
     }
 
-    if (check.rows[0].owner_id !== user_id) {
+    if (check.rows[0].owner_id !== parseInt(user_id)) {
       return res.status(403).json({ error: 'Нет доступа' });
     }
 
