@@ -160,8 +160,6 @@ app.get('/api/channels', async (req, res) => {
 
 app.get('/api/channels/:id', async (req, res) => {
   try {
-    const error = validateChannelData(req.body);
-    if (error) return res.status(400).json({ error });
     const { id } = req.params;
     const result = await pool.query('SELECT * FROM channels WHERE id = $1', [id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Канал не найден' });
