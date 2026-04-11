@@ -184,6 +184,7 @@ async function renderCollabSettings() {
 
 // Переключить ВП для канала
 async function toggleCollab(channelId, el) {
+  const user = tg?.initDataUnsafe?.user; // ← добавлено
   const isOn = el.classList.contains('on');
   const newVal = !isOn;
 
@@ -197,11 +198,9 @@ async function toggleCollab(channelId, el) {
 
   if (result) {
     showToast(newVal ? '✅ ВП включён' : '❌ ВП выключен', newVal ? 'success' : '');
-    // Обновляем локальный массив
     const ch = CHANNELS.find(c => c.id === channelId);
     if (ch) ch.collab = newVal;
   } else {
-    // Откатываем если ошибка
     el.classList.toggle('on', isOn);
   }
 }
@@ -515,18 +514,22 @@ async function editChannel(id) {
   if (!data) return;
 
   editingChannelId = id;
-  document.getElementById('fName').value     = data.name || '';
-  document.getElementById('fUsname').value   = data.usname || '';
-  document.getElementById('fCategory').value = data.category || '';
-  document.getElementById('fSubs').value     = data.subscribers || '';
-  document.getElementById('fPrice24').value  = data.pricead_24 || '';
-  document.getElementById('fPriceAll').value = data.pricead_all || '';
 
-  document.getElementById('manageFormTitle').textContent = '✏️ Редактировать канал';
-  document.getElementById('formSubmitBtn').textContent   = '💾 Сохранить';
-  document.getElementById('formCancelBtn').style.display = 'block';
+  // fName и fSubs убраны — их нет в форме
+  if (document.getElementById('fUsname'))   document.getElementById('fUsname').value   = data.usname || '';
+  if (document.getElementById('fCategory')) document.getElementById('fCategory').value = data.category || '';
+  if (document.getElementById('fPrice24'))  document.getElementById('fPrice24').value  = data.pricead_24 || '';
+  if (document.getElementById('fPriceAll')) document.getElementById('fPriceAll').value = data.pricead_all || '';
 
-  // Скролл к форме
+  const title = document.getElementById('manageFormTitle');
+  if (title) title.textContent = '✏️ Редактировать канал';
+
+  const submitBtn = document.getElementById('formSubmitBtn');
+  if (submitBtn) submitBtn.textContent = '💾 Сохранить';
+
+  const cancelBtn = document.getElementById('formCancelBtn');
+  if (cancelBtn) cancelBtn.style.display = 'block';
+
   document.getElementById('manageFormCard').scrollIntoView({ behavior: 'smooth' });
   if (tg) tg.HapticFeedback?.impactOccurred('medium');
 }
