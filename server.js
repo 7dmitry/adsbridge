@@ -191,13 +191,13 @@ app.put('/api/channels/:id', requireTgAuth, async (req, res) => {
     if (!user_id) {
       return res.status(401).json({ error: 'Не авторизован' });
     }
-
+    console.log('checking owner...');
     // Проверяем что канал принадлежит этому пользователю
     const check = await pool.query(
       'SELECT owner_id FROM channels WHERE id = $1',
       [id]
     );
-
+    console.log('owner:', check.rows[0]);
     if (check.rows.length === 0) {
       return res.status(404).json({ error: 'Канал не найден' });
     }
@@ -205,14 +205,14 @@ app.put('/api/channels/:id', requireTgAuth, async (req, res) => {
     if (String(check.rows[0].owner_id) !== String(user_id)) {
       return res.status(403).json({ error: 'Нет доступа' });
     }
-
+    console.log('updating...');
     const result = await pool.query(
       `UPDATE channels SET name=$1, usname=$2, category=$3, 
        subscribers=$4, pricead_24=$5, pricead_all=$6 
        WHERE id=$7 RETURNING *`,
       [name, usname, category, subscribers, pricead_24, pricead_all, id]
     );
-
+    console.log('updated:', result.rows[0]);
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
