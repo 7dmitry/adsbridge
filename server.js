@@ -455,6 +455,13 @@ app.patch('/api/channels/:id/collab', requireTgAuth, async (req, res) => {
       'SELECT owner_id FROM channels WHERE id = $1', [id]
     );
 
+    console.log('owner check:', {   // ← добавь сюда
+      owner_id: check.rows[0]?.owner_id, 
+      owner_id_type: typeof check.rows[0]?.owner_id,
+      user_id, 
+      user_id_type: typeof user_id 
+    });
+
     if (check.rows.length === 0) {
       return res.status(404).json({ error: 'Канал не найден' });
     }
