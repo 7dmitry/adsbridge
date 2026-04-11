@@ -142,8 +142,6 @@ app.post('/api/users', requireTgAuth, async (req, res) => {
 
 app.get('/api/channels', async (req, res) => {
   try {
-    const error = validateChannelData(req.body);
-    if (error) return res.status(400).json({ error });
     const { category } = req.query;
     let result;
     if (category && category !== 'all') {
