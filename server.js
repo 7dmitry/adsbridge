@@ -11,11 +11,99 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const rateLimit = require('express-rate-limit');
+
+const defaultLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: 'Слишком много запросов, подождите минуту' }
+});
+
+const strictLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  message: { error: 'Слишком много попыток, подождите минуту' }
+});
+
+app.use('/api/', defaultLimiter);
+app.use('/api/verify-channel', strictLimiter);
+app.use('/api/send-message', strictLimiter);
+
 app.use(express.static(path.join(__dirname, 'public')));
+
+const crypto = require('crypto');
+
+function verifyTelegramInitData(initData) {
+  try {
+    const params = new URLSearchParams(initData);
+    const hash = params.get('hash');
+    if (!hash) return false;
+    params.delete('hash');
+
+    const dataCheckString = [...params.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}=${v}`)
+      .join('\n');
+
+    const secretKey = crypto
+      .createHmac('sha256', 'WebAppData')
+      .update(process.env.BOT_TOKEN)
+      .digest();
+
+    const expectedHash = crypto
+      .createHmac('sha256', secretKey)
+      .update(dataCheckString)
+      .digest('hex');
+
+    return expectedHash === hash;
+  } catch {
+    return false;
+  }
+}
+
+function requireTgAuth(req, res, next) {
+  const initData = req.headers['x-telegram-init-data'];
+
+  // В режиме разработки (браузер без Telegram) пропускаем
+  if (!initData || initData === '') {
+    if (process.env.NODE_ENV === 'development') return next();
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (!verifyTelegramInitData(initData)) {
+    return res.status(401).json({ error: 'Invalid Telegram data' });
+  }
+
+  next();
+}
+
+const VALID_CATEGORIES = [
+  'tech','business','finance','games',
+  'art','news','entertainment','edu','other'
+];
+
+function validateChannelData({ usname, category, pricead_24, pricead_all }) {
+  if (!usname || typeof usname !== 'string' || usname.length > 50) {
+    return 'Некорректный username';
+  }
+  if (!/^[a-zA-Z0-9_]{3,50}$/.test(usname)) {
+    return 'Username содержит недопустимые символы';
+  }
+  if (!category || !VALID_CATEGORIES.includes(category)) {
+    return 'Недопустимая категория';
+  }
+  if (pricead_24 && (isNaN(pricead_24) || pricead_24 < 0 || pricead_24 > 100000)) {
+    return 'Недопустимая цена 24ч';
+  }
+  if (pricead_all && (isNaN(pricead_all) || pricead_all < 0 || pricead_all > 100000)) {
+    return 'Недопустимая цена навсегда';
+  }
+  return null; 
+}
 
 // ===== STATS ===== node server.js
 
-app.get('/api/stats', async (req, res) => {
+app.get('/api/stats', requireTgAuth, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
@@ -33,7 +121,7 @@ app.get('/api/stats', async (req, res) => {
 });
 
 // Создать или обновить пользователя
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', requireTgAuth, async (req, res) => {
   try {
     const { id, username, first_name, last_name } = req.body;
     const result = await pool.query(`
@@ -52,8 +140,10 @@ app.post('/api/users', async (req, res) => {
 });
 // ===== CHANNELS =====
 
-app.get('/api/channels', async (req, res) => {
+app.get('/api/channels', requireTgAuth, async (req, res) => {
   try {
+    const error = validateChannelData(req.body);
+    if (error) return res.status(400).json({ error });
     const { category } = req.query;
     let result;
     if (category && category !== 'all') {
@@ -70,8 +160,10 @@ app.get('/api/channels', async (req, res) => {
   }
 });
 
-app.get('/api/channels/:id', async (req, res) => {
+app.get('/api/channels/:id', requireTgAuth, async (req, res) => {
   try {
+    const error = validateChannelData(req.body);
+    if (error) return res.status(400).json({ error });
     const { id } = req.params;
     const result = await pool.query('SELECT * FROM channels WHERE id = $1', [id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Канал не найден' });
@@ -81,7 +173,7 @@ app.get('/api/channels/:id', async (req, res) => {
   }
 });
 
-app.post('/api/channels', async (req, res) => {
+app.post('/api/channels', requireTgAuth, async (req, res) => {
   try {
     const { name, usname, category, subscribers, pricead_24, pricead_all, owner_id, avatar_url } = req.body;
     const result = await pool.query(
@@ -95,26 +187,60 @@ app.post('/api/channels', async (req, res) => {
   }
 });
 
-app.put('/api/channels/:id', async (req, res) => {
+app.put('/api/channels/:id', requireTgAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, usname, category, subscribers, pricead_24, pricead_all } = req.body;
+    const { name, usname, category, subscribers, pricead_24, pricead_all, user_id } = req.body;
+
+    if (!user_id) {
+      return res.status(401).json({ error: 'Не авторизован' });
+    }
+
+    // Проверяем что канал принадлежит этому пользователю
+    const check = await pool.query(
+      'SELECT owner_id FROM channels WHERE id = $1',
+      [id]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Канал не найден' });
+    }
+
+    if (check.rows[0].owner_id !== user_id) {
+      return res.status(403).json({ error: 'Нет доступа' });
+    }
+
     const result = await pool.query(
-      `UPDATE channels SET name=$1, usname=$2, category=$3, subscribers=$4, pricead_24=$5, pricead_all=$6
+      `UPDATE channels SET name=$1, usname=$2, category=$3, 
+       subscribers=$4, pricead_24=$5, pricead_all=$6 
        WHERE id=$7 RETURNING *`,
       [name, usname, category, subscribers, pricead_24, pricead_all, id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Канал не найден' });
+
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.delete('/api/channels/:id', async (req, res) => {
+app.delete('/api/channels/:id', requireTgAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM channels WHERE id = $1', [id]);
+    const { user_id } = req.body;
+
+    if (!user_id) {
+      return res.status(401).json({ error: 'Не авторизован' });
+    }
+
+    const result = await pool.query(
+      'DELETE FROM channels WHERE id = $1 AND owner_id = $2 RETURNING *',
+      [id, user_id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(403).json({ error: 'Нет доступа или канал не найден' });
+    }
+
     res.json({ message: 'Канал удалён' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -123,7 +249,7 @@ app.delete('/api/channels/:id', async (req, res) => {
 
 // ===== USER_ADMIN =====
 
-app.get('/api/user/:user_id/channels', async (req, res) => {
+app.get('/api/user/:user_id/channels', requireTgAuth, async (req, res) => {
   try {
     const { user_id } = req.params;
     const result = await pool.query(
@@ -139,7 +265,7 @@ app.get('/api/user/:user_id/channels', async (req, res) => {
   }
 });
 
-app.post('/api/user_admin', async (req, res) => {
+app.post('/api/user_admin', requireTgAuth, async (req, res) => {
   try {
     const { user_id, channel_id, premium } = req.body;
     const result = await pool.query(
@@ -152,7 +278,7 @@ app.post('/api/user_admin', async (req, res) => {
   }
 });
 
-app.put('/api/user_admin/:user_id/:channel_id', async (req, res) => {
+app.put('/api/user_admin/:user_id/:channel_id', requireTgAuth, async (req, res) => {
   try {
     const { user_id, channel_id } = req.params;
     const { premium, premium_day } = req.body;
@@ -166,7 +292,7 @@ app.put('/api/user_admin/:user_id/:channel_id', async (req, res) => {
   }
 });
 
-app.delete('/api/user_admin/:user_id/:channel_id', async (req, res) => {
+app.delete('/api/user_admin/:user_id/:channel_id', requireTgAuth, async (req, res) => {
   try {
     const { user_id, channel_id } = req.params;
     await pool.query('DELETE FROM user_admin WHERE user_id=$1 AND channel_id=$2', [user_id, channel_id]);
@@ -177,7 +303,7 @@ app.delete('/api/user_admin/:user_id/:channel_id', async (req, res) => {
 });
 
 // ===== ВЕРИФИКАЦИЯ КАНАЛА + получение subscribers =====
-app.post('/api/verify-channel', async (req, res) => {
+app.post('/api/verify-channel', requireTgAuth, async (req, res) => {
   const { usname, user_id } = req.body;
   if (!usname || !user_id) return res.status(400).json({ error: 'Укажи usname и user_id' });
 
@@ -249,7 +375,7 @@ app.post('/api/verify-channel', async (req, res) => {
   }
 });
 
-app.post('/api/send-message', async (req, res) => {
+app.post('/api/send-message', requireTgAuth, async (req, res) => {
   const { user_id, channel_id } = req.body;
 
   if (!user_id || !channel_id) {
@@ -313,19 +439,31 @@ app.post('/api/send-message', async (req, res) => {
   }
 });
 
-app.patch('/api/channels/:id/collab', async (req, res) => {
+app.patch('/api/channels/:id/collab', requireTgAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { collab } = req.body;
+    const { collab, user_id } = req.body;
+
+    if (!user_id) {
+      return res.status(401).json({ error: 'Не авторизован' });
+    }
+
+    const check = await pool.query(
+      'SELECT owner_id FROM channels WHERE id = $1', [id]
+    );
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Канал не найден' });
+    }
+
+    if (check.rows[0].owner_id !== user_id) {
+      return res.status(403).json({ error: 'Нет доступа' });
+    }
 
     const result = await pool.query(
       'UPDATE channels SET collab = $1 WHERE id = $2 RETURNING *',
       [collab, id]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Канал не найден' });
-    }
 
     res.json(result.rows[0]);
   } catch (err) {

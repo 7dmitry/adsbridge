@@ -18,7 +18,9 @@ const API = 'https://adsway.up.railway.app/api';
 async function apiFetch(path, options = {}) {
   try {
     const res = await fetch(API + path, {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json',
+        'x-telegram-init-data': tg?.initData || '',
+       },
       ...options,
     });
     if (!res.ok) throw new Error('Ошибка сервера: ' + res.status);
@@ -190,7 +192,7 @@ async function toggleCollab(channelId, el) {
 
   const result = await apiFetch(`/channels/${channelId}/collab`, {
     method: 'PATCH',
-    body: JSON.stringify({ collab: newVal }),
+    body: JSON.stringify({ collab: newVal, user_id: user?.id }),
   });
 
   if (result) {
@@ -372,7 +374,8 @@ async function submitChannel() {
     const body = {
       name: data.name, usname, category,
       pricead_24: price24 || null, pricead_all: priceAll || null,
-      owner_id: user?.id || 0
+      owner_id: user?.id || 0,
+      user_id: user?.id
     };
     const result = await apiFetch(`/channels/${editingChannelId}`, {
       method: 'PUT', body: JSON.stringify(body)
@@ -494,7 +497,11 @@ async function editChannel(id) {
 // ── Удалить канал ─────────────────────────────────────────────────────────────
 async function deleteChannel(id, name) {
   if (!confirm(`Удалить канал "${name}"?`)) return;
-  const result = await apiFetch(`/channels/${id}`, { method: 'DELETE' });
+  const user = tg?.initDataUnsafe?.user;
+  const result = await apiFetch(`/channels/${id}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ user_id: user?.id }) // ← добавь
+  });
   if (result) {
     showToast('🗑 Канал удалён', 'success');
     renderManagePage();
