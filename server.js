@@ -103,7 +103,7 @@ function validateChannelData({ usname, category, pricead_24, pricead_all }) {
 
 // ===== STATS ===== node server.js
 
-app.get('/api/stats', requireTgAuth, async (req, res) => {
+app.get('/api/stats', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
@@ -140,7 +140,7 @@ app.post('/api/users', requireTgAuth, async (req, res) => {
 });
 // ===== CHANNELS =====
 
-app.get('/api/channels', requireTgAuth, async (req, res) => {
+app.get('/api/channels', async (req, res) => {
   try {
     const error = validateChannelData(req.body);
     if (error) return res.status(400).json({ error });
@@ -160,7 +160,7 @@ app.get('/api/channels', requireTgAuth, async (req, res) => {
   }
 });
 
-app.get('/api/channels/:id', requireTgAuth, async (req, res) => {
+app.get('/api/channels/:id', async (req, res) => {
   try {
     const error = validateChannelData(req.body);
     if (error) return res.status(400).json({ error });
@@ -249,7 +249,7 @@ app.delete('/api/channels/:id', requireTgAuth, async (req, res) => {
 
 // ===== USER_ADMIN =====
 
-app.get('/api/user/:user_id/channels', requireTgAuth, async (req, res) => {
+app.get('/api/user/:user_id/channels', async (req, res) => {
   try {
     const { user_id } = req.params;
     const result = await pool.query(
