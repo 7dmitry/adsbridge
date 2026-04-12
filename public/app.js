@@ -440,7 +440,7 @@ function showVerifyStep(usname, channelData) {
         <div class="verify-step-num">1</div>
         <div class="verify-step-text">
           Добавь бота <strong>@${botUsername}</strong> в канал <strong>@${usname}</strong>
-          как администратора
+          как администратора(можно убрать все разрешения)
         </div>
       </div>
       <div class="verify-step">
