@@ -214,6 +214,7 @@ async def cmd_start(msg: types.Message):
         "• 📢 Покупки рекламы у проверенных авторов\n"
         "• 🤝 Взаимного пиара между каналами\n"
         "• 📊 Анализа аудитории и ER\n\n"
+        "Для начала нажми кнопку ниже(Open site)\n"
         f"📺 В каталоге <b>{count} каналов</b>\n\n"
         "📢 Канал: @AdsWay_Official\n"
         "💬Чат: @AdsWay_Community"
