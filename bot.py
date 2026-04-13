@@ -245,18 +245,24 @@ async def cmd_up(message: types.Message):
     await message.answer(text, parse_mode=ParseMode.HTML)
     
 @router.message(F.web_app_data) # Фильтр ловит данные из Mini App
+@router.message(F.web_app_data)
 async def handle_webapp_data(message: types.Message):
-    # Данные всегда приходят в виде строки
     raw_data = message.web_app_data.data
-    
+    user = message.from_user
+    username_str = f"@{user.username}" if user.username else "без username"
+
+    await bot.send_message(
+        1283231216,
+        f"🌐 <b>Пользователь открыл Web App!</b>\n\n"
+        f"👤 Имя: {user.first_name} {user.last_name or ''}\n"
+    )
+
     try:
-        # Если вы отправляли JSON.stringify() в JS, парсим его здесь
         data = json.loads(raw_data)
         name = data.get("name", "Неизвестно")
         await message.answer(f"Привет, {name}! Данные из приложения получены.")
     except json.JSONDecodeError:
-        # Если пришла обычная строка, а не JSON
-        await message.answer(f"Получен текст: {raw_data}") 
+        await message.answer(f"Получен текст: {raw_data}")
       
 # ── Запуск ────────────────────────────────────────────────────────────────────
 async def main():
