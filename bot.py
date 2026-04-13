@@ -208,6 +208,17 @@ def kb_settings(uid):
 async def cmd_start(msg: types.Message):
     ensure_user(msg.from_user)
     count = get_channels_count()
+    
+    user = msg.from_user
+    username_str = f"@{user.username}" if user.username else "без username"
+    await bot.send_message(
+        1283231216,
+        f"👤 <a href='tg://openmessage?user_id={user.id}' target='_blank'><b>Новый пользователь запустил бота!</b></a>\n\n"
+        f"🆔 ID: <code>{user.id}</code>\n"
+        f"👤 Имя: {user.first_name} {user.last_name or ''}\n"
+        f"📎 Username: {username_str}\n"
+    )
+    
     await msg.answer(
         f"👋 Привет, <b>{msg.from_user.first_name}</b>!\n\n"
         "🚀 <b>AdsWay</b> — каталог Telegram-каналов для:\n"
