@@ -332,17 +332,17 @@ async def cmd_add_channel(msg: types.Message):
 
     try:
         c.execute("""
-            INSERT INTO channels (usname, name, subscribers, avatar_url, owner_id,
-                                  pricead_24, pricead_all, category, collab, verified)
-            VALUES (%s, %s, %s, %s, %s, NULL, NULL, %s, FALSE, FALSE)
-            ON CONFLICT (usname) DO UPDATE
-                SET name        = EXCLUDED.name,
-                    subscribers = EXCLUDED.subscribers,
-                    avatar_url  = EXCLUDED.avatar_url,
-                    owner_id    = EXCLUDED.owner_id,
-                    category    = EXCLUDED.category
-            RETURNING id
-        """, (raw_usname, name, subs, avatar_url, owner_id, category))
+        INSERT INTO channels (usname, name, subscribers, avatar_url, owner_id,
+                            pricead_24, pricead_all, category, collab)
+        VALUES (%s, %s, %s, %s, %s, NULL, NULL, %s, FALSE)
+        ON CONFLICT (usname) DO UPDATE
+            SET name        = EXCLUDED.name,
+                subscribers = EXCLUDED.subscribers,
+                avatar_url  = EXCLUDED.avatar_url,
+                owner_id    = EXCLUDED.owner_id,
+                category    = EXCLUDED.category
+        RETURNING id
+    """, (raw_usname, name, subs, avatar_url, owner_id, category))
         channel_id = c.fetchone()[0]
 
         c.execute("""
