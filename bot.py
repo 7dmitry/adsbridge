@@ -282,6 +282,76 @@ async def main():
     logger.info("🚀 AdsBridge Bot запущен")
     await dp.start_polling(bot)
 
+@dp.message(Command("add"))
+async def cmd_add_channel(msg: types.Message):
+    if msg.from_user.id != ADMIN_ID:
+        return await msg.answer("⛔ Нет доступа.")
+
+    parts = msg.text.strip().split()
+    if len(parts) != 3:
+        return await msg.answer(
+            "❌ Неверный формат.\n\n"
+            "Используй: <code>/add @username ID_владельца</code>\n"
+            "Пример: <code>/add @mychannel 123456789</code>"
+        )
+
+    raw_usname = parts[1].lstrip('@')
+    try:
+        owner_id = int(parts[2])
+    except ValueError:
+        return await msg.answer("❌ ID владельца должен быть числом.")
+
+    await msg.answer(f"🔍 Получаю инфо о канале @{raw_usname}...")
+
+    subs, avatar_url, name = await fetch_channel_info(raw_usname)
+
+    # ── Фолбэк: если не удалось получить инфо — вставляем с минимальными данными
+    if subs is None:
+        name = raw_usname        # имя = username
+        subs = 0                 # подписчики неизвестны
+        avatar_url = None
+        fallback_warn = (
+            "\n⚠️ <i>Не удалось получить данные канала автоматически.\n"
+            "Подписчики и аватар не заполнены — обнови вручную позже.</i>"
+        )
+    else:
+        fallback_warn = ""
+
+    try:
+        c.execute("""
+            INSERT INTO channels (usname, name, subscribers, avatar_url, owner_id,
+                                  pricead_24, pricead_all, category, collab, verified)
+            VALUES (%s, %s, %s, %s, %s, NULL, NULL, 'other', FALSE, FALSE)
+            ON CONFLICT (usname) DO UPDATE
+                SET name        = EXCLUDED.name,
+                    subscribers = EXCLUDED.subscribers,
+                    avatar_url  = EXCLUDED.avatar_url,
+                    owner_id    = EXCLUDED.owner_id
+            RETURNING id
+        """, (raw_usname, name, subs, avatar_url, owner_id))
+        channel_id = c.fetchone()[0]
+
+        c.execute("""
+            INSERT INTO user_admin (user_id, channel_id)
+            VALUES (%s, %s)
+            ON CONFLICT DO NOTHING
+        """, (owner_id, channel_id))
+
+        await msg.answer(
+            f"✅ <b>Канал добавлен!</b>\n\n"
+            f"📢 Название: <b>{name}</b>\n"
+            f"🔗 Username: @{raw_usname}\n"
+            f"👥 Подписчики: <b>{subs:,}</b>\n"
+            f"👤 Владелец ID: <code>{owner_id}</code>\n"
+            f"🆔 ID в БД: <code>{channel_id}</code>\n"
+            f"💰 Цена: не указана"
+            + fallback_warn
+        )
+
+    except Exception as e:
+        logger.error(f"Ошибка добавления канала: {e}")
+        await msg.answer(f"❌ Ошибка при записи в БД:\n<code>{e}</code>")
+
 if __name__ == "__main__":
     asyncio.run(main())
 
