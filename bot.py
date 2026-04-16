@@ -282,17 +282,22 @@ async def main():
     logger.info("🚀 AdsBridge Bot запущен")
     await dp.start_polling(bot)
 
+CAT_KEYS = {"tech", "business", "games", "art", "news", "finance", "entertainment", "edu", "other"}
+
 @dp.message(Command("add"))
 async def cmd_add_channel(msg: types.Message):
     if msg.from_user.id != ADMIN_ID:
         return await msg.answer("⛔ Нет доступа.")
 
     parts = msg.text.strip().split()
-    if len(parts) != 3:
+    if len(parts) != 4:
         return await msg.answer(
             "❌ Неверный формат.\n\n"
-            "Используй: <code>/add @username ID_владельца</code>\n"
-            "Пример: <code>/add @mychannel 123456789</code>"
+            "Используй: <code>/add @username ID_владельца категория</code>\n"
+            "Пример: <code>/add @mychannel 123456789 tech</code>\n\n"
+            "📂 Доступные категории:\n"
+            "tech · business · games · art · news\n"
+            "finance · entertainment · edu · other"
         )
 
     raw_usname = parts[1].lstrip('@')
@@ -301,14 +306,22 @@ async def cmd_add_channel(msg: types.Message):
     except ValueError:
         return await msg.answer("❌ ID владельца должен быть числом.")
 
+    category = parts[3].lower()
+    if category not in CAT_KEYS:
+        return await msg.answer(
+            f"❌ Неизвестная категория: <code>{category}</code>\n\n"
+            "📂 Доступные:\n"
+            "tech · business · games · art · news\n"
+            "finance · entertainment · edu · other"
+        )
+
     await msg.answer(f"🔍 Получаю инфо о канале @{raw_usname}...")
 
     subs, avatar_url, name = await fetch_channel_info(raw_usname)
 
-    # ── Фолбэк: если не удалось получить инфо — вставляем с минимальными данными
     if subs is None:
-        name = raw_usname        # имя = username
-        subs = 0                 # подписчики неизвестны
+        name = raw_usname
+        subs = 0
         avatar_url = None
         fallback_warn = (
             "\n⚠️ <i>Не удалось получить данные канала автоматически.\n"
@@ -321,14 +334,15 @@ async def cmd_add_channel(msg: types.Message):
         c.execute("""
             INSERT INTO channels (usname, name, subscribers, avatar_url, owner_id,
                                   pricead_24, pricead_all, category, collab, verified)
-            VALUES (%s, %s, %s, %s, %s, NULL, NULL, 'other', FALSE, FALSE)
+            VALUES (%s, %s, %s, %s, %s, NULL, NULL, %s, FALSE, FALSE)
             ON CONFLICT (usname) DO UPDATE
                 SET name        = EXCLUDED.name,
                     subscribers = EXCLUDED.subscribers,
                     avatar_url  = EXCLUDED.avatar_url,
-                    owner_id    = EXCLUDED.owner_id
+                    owner_id    = EXCLUDED.owner_id,
+                    category    = EXCLUDED.category
             RETURNING id
-        """, (raw_usname, name, subs, avatar_url, owner_id))
+        """, (raw_usname, name, subs, avatar_url, owner_id, category))
         channel_id = c.fetchone()[0]
 
         c.execute("""
@@ -344,6 +358,7 @@ async def cmd_add_channel(msg: types.Message):
             f"👥 Подписчики: <b>{subs:,}</b>\n"
             f"👤 Владелец ID: <code>{owner_id}</code>\n"
             f"🆔 ID в БД: <code>{channel_id}</code>\n"
+            f"📂 Категория: <b>{CAT[category]}</b>\n"
             f"💰 Цена: не указана"
             + fallback_warn
         )
