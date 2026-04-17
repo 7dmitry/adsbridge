@@ -18,12 +18,17 @@ const API = 'https://adsway.up.railway.app/api';
 async function apiFetch(path, options = {}) {
   try {
     const res = await fetch(API + path, {
-      headers: { 'Content-Type': 'application/json',
+      headers: {
+        'Content-Type': 'application/json',
         'x-telegram-init-data': tg?.initData || '',
-       },
+      },
       ...options,
     });
-    if (!res.ok) throw new Error('Ошибка сервера: ' + res.status);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      // Возвращаем объект с флагом ошибки и статусом
+      return { __error: true, status: res.status, message: errData.error || 'Ошибка сервера' };
+    }
     return await res.json();
   } catch (err) {
     showToast('⚠️ Нет связи с сервером', 'error');
@@ -477,15 +482,14 @@ async function verifyAndSave() {
     body: JSON.stringify({ usname: channelData.usname, user_id: user.id }),
   });
 
-  if (!verify || !verify.verified) {
+  if (!verify || verify.__error || !verify.verified) {
     btn.textContent = '🔍 Проверить';
     btn.disabled = false;
-    showToast(verify?.error || '❌ Проверка не пройдена', 'error');
+    showToast(verify?.error || verify?.message || '❌ Проверка не пройдена', 'error');
     return;
   }
 
-  // Берём все данные из Telegram
-  channelData.name       = verify.name || channelData.usname;  // ← название из Telegram
+  channelData.name        = verify.name || channelData.usname;
   channelData.subscribers = verify.subscribers || 0;
   channelData.avatar_url  = verify.avatar_url || null;
 
@@ -494,19 +498,35 @@ async function verifyAndSave() {
     body: JSON.stringify(channelData),
   });
 
-  if (result) {
-    if (user?.id) {
-      await apiFetch('/user_admin', {
-        method: 'POST',
-        body: JSON.stringify({ user_id: user.id, channel_id: result.id, premium: false }),
-      });
-    }
-    showToast(`✅ Канал "${channelData.name}" добавлен!`, 'success');
-    renderManagePage();
-    loadStats();
-    window._pendingChannel = null;
+  if (!result) {
+    btn.textContent = '🔍 Проверить';
+    btn.disabled = false;
+    return;
   }
-} 
+
+  if (result.__error) {
+    btn.textContent = '🔍 Проверить';
+    btn.disabled = false;
+    if (result.status === 409) {
+      showToast('❌ Этот канал уже добавлен другим пользователем', 'error');
+    } else {
+      showToast(`❌ ${result.message}`, 'error');
+    }
+    return;
+  }
+
+  if (user?.id) {
+    await apiFetch('/user_admin', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: user.id, channel_id: result.id, premium: false }),
+    });
+  }
+
+  showToast(`✅ Канал "${channelData.name}" добавлен!`, 'success');
+  renderManagePage();
+  loadStats();
+  window._pendingChannel = null;
+}
 
 // ── Редактировать канал ───────────────────────────────────────────────────────
 async function editChannel(id) {

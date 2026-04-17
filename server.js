@@ -170,12 +170,37 @@ app.get('/api/channels/:id', async (req, res) => {
 app.post('/api/channels', requireTgAuth, async (req, res) => {
   try {
     const { name, usname, category, subscribers, pricead_24, pricead_all, owner_id, avatar_url } = req.body;
+
+    // Проверяем — вдруг канал уже существует с другим owner_id
+    const existing = await pool.query(
+      'SELECT id, owner_id FROM channels WHERE usname = $1',
+      [usname]
+    );
+
+    if (existing.rows.length > 0) {
+      const ch = existing.rows[0];
+      // Канал уже добавлен кем-то другим
+      if (String(ch.owner_id) !== String(owner_id)) {
+        return res.status(409).json({ error: 'Этот канал уже добавлен другим пользователем' });
+      }
+      // Это его же канал — просто обновляем
+      const result = await pool.query(
+        `UPDATE channels SET name=$1, category=$2, subscribers=$3,
+         pricead_24=$4, pricead_all=$5, avatar_url=$6
+         WHERE usname=$7 RETURNING *`,
+        [name, category, subscribers || 0, pricead_24 || null, pricead_all || null, avatar_url || null, usname]
+      );
+      return res.json(result.rows[0]); // 200, не 201
+    }
+
+    // Нового канала нет — вставляем
     const result = await pool.query(
       `INSERT INTO channels (name, usname, category, subscribers, pricead_24, pricead_all, owner_id, avatar_url)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
       [name, usname, category, subscribers || 0, pricead_24 || null, pricead_all || null, owner_id, avatar_url || null]
     );
     res.status(201).json(result.rows[0]);
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
