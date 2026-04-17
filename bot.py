@@ -241,11 +241,13 @@ async def cmd_update_subs(msg: types.Message):
 
 @dp.message(Command("up"))
 async def cmd_up(message: types.Message):
-    # text = "Перейдите на <a href='tg://openmessage?user_id=7935048582'>Google</a> для поиска."
     
-    chat = await bot.get_chat(7935048582)
-    username = chat.username
-    text = username
+    
+    # chat = await bot.get_chat(7935048582)
+    # username = chat.username
+    # owner_id = 7935048582
+    # text = '{owner_id}'
+    text = "Перейдите на <a href='https://t.me/user?id=$7935048582'>Google</a> для поиска."
     await message.answer(text, parse_mode=ParseMode.HTML)
     
 @router.message(F.web_app_data) # Фильтр ловит данные из Mini App
