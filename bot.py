@@ -226,7 +226,8 @@ async def cmd_start(msg: types.Message):
         "• 🤝 Взаимного пиара между каналами\n"
         "• 📊 Анализа аудитории и ER\n\n"
         f"📺 В каталоге <b>{count} каналов</b>\n"
-        "Для открытия каталога нажми кнопку ниже(Открыть каталог✨)\n\n"
+        "Для открытия каталога нажми кнопку ниже(Открыть каталог✨)\n"
+        "📋Инструкция по добавлению канала в каталог: https://t.me/AdsWay_Official/26\n\n"
         "📢 Канал: @AdsWay_Official\n"
         "💬Чат: @AdsWay_Community"
     )
@@ -273,7 +274,7 @@ async def handle_webapp_data(message: types.Message):
 async def main():
     # Планировщик: каждые 24-72 часа (1-3 дня)
     # Интервал выбирается случайно при каждом запуске
-    interval_hours = random.randint(24, 72)
+    interval_hours = 12
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
         update_all_subscribers,
