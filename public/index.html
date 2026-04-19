@@ -87,14 +87,14 @@
 
       <div class="search-box">
         <span class="search-icon">🔍</span>
-        <input class="search-input" id="searchInput" placeholder="Название, @username, тематика…" oninput="doSearch()">
+        <input class="search-input" id="searchInput" placeholder="Название, @username, тематика, валюта…" oninput="doSearch()">
       </div>
 
       <div class="filter-row">
         <div class="filter-chip active" data-sort="default" onclick="setSort(this)">⚡ Все</div>
-        <div class="filter-chip" data-sort="subs" onclick="setSort(this)">👥 По подписчикам</div>
+        <div class="filter-chip" data-sort="subs"  onclick="setSort(this)">👥 По подписчикам</div>
         <div class="filter-chip" data-sort="price" onclick="setSort(this)">💰 По цене</div>
-        <div class="filter-chip" data-sort="er" onclick="setSort(this)">📊 По ER</div>
+        <div class="filter-chip" data-sort="er"    onclick="setSort(this)">📊 По ER</div>
         <div class="filter-chip" id="filterToggle" onclick="toggleFilters()">⚙️ Фильтры</div>
       </div>
 
@@ -102,41 +102,44 @@
         <div class="filter-group">
           <div class="filter-label">Категория</div>
           <div class="filter-cats" id="filterCats">
-            <div class="fcat active" data-fcat="all" onclick="setFcat(this)">Все</div>
-            <div class="fcat" data-fcat="tech" onclick="setFcat(this)">🖥️ Tech</div>
-            <div class="fcat" data-fcat="business" onclick="setFcat(this)">💼 Бизнес</div>
-            <div class="fcat" data-fcat="finance" onclick="setFcat(this)">📈 Финансы</div>
-            <div class="fcat" data-fcat="games" onclick="setFcat(this)">🎮 Игры</div>
-            <div class="fcat" data-fcat="art" onclick="setFcat(this)">🎨 Арт</div>
-            <div class="fcat" data-fcat="news" onclick="setFcat(this)">📰 Новости</div>
-            <div class="fcat" data-fcat="entertainment" onclick="setFcat(this)">🎬 Развлечения</div>
-            <div class="fcat" data-fcat="edu" onclick="setFcat(this)">🎓 Образование</div>
-            <div class="fcat" data-fcat="other" onclick="setFcat(this)">🌍 Другое</div>
+            <div class="fcat active" data-fcat="all"           onclick="setFcat(this)">Все</div>
+            <div class="fcat" data-fcat="tech"                 onclick="setFcat(this)">🖥️ Tech</div>
+            <div class="fcat" data-fcat="business"             onclick="setFcat(this)">💼 Бизнес</div>
+            <div class="fcat" data-fcat="finance"              onclick="setFcat(this)">📈 Финансы</div>
+            <div class="fcat" data-fcat="games"                onclick="setFcat(this)">🎮 Игры</div>
+            <div class="fcat" data-fcat="art"                  onclick="setFcat(this)">🎨 Арт</div>
+            <div class="fcat" data-fcat="news"                 onclick="setFcat(this)">📰 Новости</div>
+            <div class="fcat" data-fcat="entertainment"        onclick="setFcat(this)">🎬 Развлечения</div>
+            <div class="fcat" data-fcat="edu"                  onclick="setFcat(this)">🎓 Образование</div>
+            <div class="fcat" data-fcat="other"                onclick="setFcat(this)">🌍 Другое</div>
           </div>
         </div>
+
         <div class="filter-group">
           <div class="filter-label">Подписчиков (мин – макс)</div>
           <div class="range-row">
-            <input class="range-input" id="subsMin" type="number" placeholder="0" oninput="doSearch()">
-            <input class="range-input" id="subsMax" type="number" placeholder="∞" oninput="doSearch()">
+            <input class="range-input" id="subsMin"  type="number" placeholder="0" oninput="doSearch()">
+            <input class="range-input" id="subsMax"  type="number" placeholder="∞" oninput="doSearch()">
           </div>
         </div>
-        <div class="filter-group" style="margin-bottom:0">
-          <div class="filter-label" id="priceCurrLabel">Цена рекламы 24ч (мин – макс, ꘜ)</div>
+
+        <div class="filter-group">
+          <div class="filter-label" id="priceCurrLabel">Цена рекламы 24ч (мин – макс)</div>
           <div class="range-row">
             <input class="range-input" id="priceMin" type="number" placeholder="0" oninput="doSearch()">
             <input class="range-input" id="priceMax" type="number" placeholder="∞" oninput="doSearch()">
           </div>
         </div>
-        <div class="filter-group" style="margin-bottom:0; margin-top:12px">
-          <div class="filter-label">Валюта поиска цены</div>
+
+        <div class="filter-group" style="margin-bottom:0">
+          <div class="filter-label">Валюта оплаты</div>
           <div class="filter-cats" id="filterCurrs">
-            <div class="fcurr active" data-fcurr="all" onclick="setFcurr(this)">Все</div>
-            <div class="fcurr" data-fcurr="TON" onclick="setFcurr(this)">ꘜ TON</div>
-            <div class="fcurr" data-fcurr="RUB" onclick="setFcurr(this)">₽ RUB</div>
-            <div class="fcurr" data-fcurr="KZT" onclick="setFcurr(this)">₸ KZT</div>
-            <div class="fcurr" data-fcurr="USD" onclick="setFcurr(this)">$ USD</div>
-            <div class="fcurr" data-fcurr="STARS" onclick="setFcurr(this)">⭐ Stars</div>
+            <div class="fcurr active" data-fcurr="all"   onclick="setFcurr(this)">Все</div>
+            <div class="fcurr" data-fcurr="TON"          onclick="setFcurr(this)">ꘜ TON</div>
+            <div class="fcurr" data-fcurr="RUB"          onclick="setFcurr(this)">₽ RUB</div>
+            <div class="fcurr" data-fcurr="KZT"          onclick="setFcurr(this)">₸ KZT</div>
+            <div class="fcurr" data-fcurr="USD"          onclick="setFcurr(this)">$ USD</div>
+            <div class="fcurr" data-fcurr="STARS"        onclick="setFcurr(this)">⭐️ Stars</div>
           </div>
         </div>
       </div>
@@ -153,10 +156,9 @@
     <div class="page" id="page-manage">
       <p class="section-title" style="margin-top:4px">Управление каналами</p>
 
-      <!-- Форма добавления / редактирования -->
       <div class="manage-form-card" id="manageFormCard">
-        <div class="manage-form-title" id="manageFormTitle">➕ Добавить канал</div>
-
+        <!-- Заполняется через JS renderManagePage() -->
+        <div class="manage-form-title">➕ Добавить канал</div>
         <div class="form-group">
           <label class="form-label">Username (без @) *</label>
           <input class="form-input" id="fUsname" placeholder="techpulse">
@@ -176,24 +178,32 @@
             <option value="other">🌍 Другое</option>
           </select>
         </div>
+        <div class="form-group">
+          <label class="form-label">Валюта цен</label>
+          <select class="form-input" id="fCurrency" onchange="updatePriceLabels()">
+            <option value="RUB">₽ RUB — Российский рубль</option>
+            <option value="KZT">₸ KZT — Тенге</option>
+            <option value="TON">ꘜ TON — Toncoin</option>
+            <option value="USD">$ USD — Доллар</option>
+            <option value="STARS">⭐️ Stars — Telegram Stars</option>
+          </select>
+        </div>
         <div class="form-row">
           <div class="form-group" style="flex:1">
-            <label class="form-label">Цена рекламы 24ч (ꘜ)</label>
-            <input class="form-input" id="fPrice24" placeholder="5">
+            <label class="form-label" id="label24">Цена рекламы 24ч (₽)</label>
+            <input class="form-input" id="fPrice24" placeholder="500" type="number">
           </div>
           <div class="form-group" style="flex:1">
-            <label class="form-label">Цена навсегда (ꘜ)</label>
-            <input class="form-input" id="fPriceAll" placeholder="13">
+            <label class="form-label" id="labelAll">Цена навсегда (₽)</label>
+            <input class="form-input" id="fPriceAll" placeholder="1000" type="number">
           </div>
         </div>
-
         <div class="form-actions">
           <button class="btn btn-secondary" id="formCancelBtn" onclick="resetForm()" style="display:none">Отмена</button>
           <button class="btn btn-primary" id="formSubmitBtn" onclick="submitChannel()" style="flex:1;justify-content:center">➕ Добавить</button>
         </div>
       </div>
 
-      <!-- Мои каналы -->
       <p class="section-title" style="margin-top:20px">Мои каналы</p>
       <div id="myChannelsList">
         <div class="empty-state"><div class="empty-icon">📺</div><div class="empty-title">Загрузка…</div></div>
@@ -205,64 +215,7 @@
       <h4>
         Скоро здесь будет возможность поддержать проект донатом и получить 💎Премиум-статус для своих каналов...
       </h4>
-    </div>  
-      <!-- <div class="donate-hero">
-        <span class="donate-emoji">💎</span>
-        <h2>Поддержи AdsWay</h2>
-        <p>Твой донат помогает развивать каталог, добавлять новые функции и держать сервис бесплатным</p>
-      </div>
-
-      <p class="section-title">Премиум дает:</p>
-      <div class="perks">
-        <div class="perk-item">
-          <div class="perk-icon purple">⭐</div>
-          <div class="perk-text">
-            <strong>Verified-значок</strong>
-            <span>Ваши каналы получают значок проверенного автора</span>
-          </div>
-        </div>
-        <div class="perk-item">
-          <div class="perk-icon blue">🔝</div>
-          <div class="perk-text">
-            <strong>Топ выдачи</strong>
-            <span>Каналы отображаются выше в результатах поиска</span>
-          </div>
-        </div>
-        
-      </div>
-
-      <p class="section-title">Выберите сумму</p>
-      <div class="amounts-grid">
-        <div class="amount-btn" onclick="selectAmount(49, this)">
-          <div class="stars">⭐</div>
-          <div class="amount-val">49</div>
-          <div class="amount-rub">1 Неделя</div>
-        </div>
-        <div class="amount-btn" onclick="selectAmount(99, this)">
-          <div class="stars">⭐</div>
-          <div class="amount-val">99</div>
-          <div class="amount-rub">1 Месяц</div>
-        </div>
-        <div class="amount-btn selected" onclick="selectAmount(499, this)">
-          <div class="stars">⭐</div>
-          <div class="amount-val">289</div>
-          <div class="amount-rub">3 месяцев</div>
-        </div>
-        <div class="amount-btn" onclick="selectAmount(489, this)">
-          <div class="stars">⭐</div>
-          <div class="amount-val">549</div>
-          <div class="amount-rub">6 месяцев</div>
-        </div>
-      </div>
-
-      <div id="customAmountRow" style="display:none;gap:10px;margin-bottom:16px;margin-top:4px">
-        <input class="range-input" id="customInput" type="number" placeholder="Введите сумму Stars" style="flex:1;padding:12px">
-      </div>
-
-      <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:15px;padding:14px" onclick="sendDonate()">
-        💎 Задонатить <span id="donateBtnAmount">250 Stars</span>
-      </button>
-    
+    </div>
 
     <!-- ════════ SETTINGS ════════ -->
     <div class="page" id="page-settings">
@@ -270,18 +223,18 @@
         <div class="profile-avatar">👤</div>
         <div class="profile-info">
           <div class="pname" id="profileName">Загрузка…</div>
-          <div class="pid" id="profileId"></div>
+          <div class="pid"   id="profileId"></div>
           <div class="ptags"><span class="tag">Пользователь</span></div>
         </div>
       </div>
 
       <p class="section-title">Мои каналы</p>
       <div id="collabSettingsList">
-        <!-- сюда JS вставит переключатели для каждого канала -->
         <div class="empty-state" style="padding:20px">
           <div class="empty-title" style="font-size:13px">Загрузка каналов…</div>
         </div>
       </div>
+
       <p class="section-title">Валюта отображения</p>
       <div id="currencySettingsBlock">
         <!-- JS вставит настройки валют -->
@@ -304,19 +257,18 @@
         <div class="setting-item">
           <div class="set-icon blue">ℹ️</div>
           <div class="set-text"><div class="set-title">Версия</div></div>
-          <div class="set-right">v1.0.0</div>
+          <div class="set-right">v1.1.0</div>
         </div>
-        
         <div class="setting-item">
           <div class="set-icon purple">📢</div>
           <div class="set-text">
             <a href="https://t.me/AdsWay_Official" target="_blank">
               <div class="set-title">Наш канал</div>
               <div class="set-sub">@AdsWay_official</div>
-            </a>  
+            </a>
           </div>
           <div class="set-right">›</div>
-        </div> 
+        </div>
         <div class="setting-item">
           <div class="set-icon green">💬</div>
           <div class="set-text">
@@ -326,31 +278,32 @@
             </a>
           </div>
           <div class="set-right">›</div>
-        </div> 
+        </div>
       </div>
     </div>
+
   </main>
 
   <!-- ── Bottom Nav ──────────────────────────────────────────────────────────── -->
   <nav class="nav">
-    <div class="nav-item active" id="nav-home" onclick="showPage('home')">
+    <div class="nav-item active" id="nav-home"     onclick="showPage('home')">
       <div class="nav-icon">🏠</div>
       <span class="nav-label">Главная</span>
     </div>
-    <div class="nav-item" id="nav-search" onclick="showPage('search')">
+    <div class="nav-item" id="nav-search"           onclick="showPage('search')">
       <div class="nav-icon">🔍</div>
       <span class="nav-label">Поиск</span>
     </div>
-    <div class="nav-item" id="nav-manage" onclick="showPage('manage')">
+    <div class="nav-item" id="nav-manage"           onclick="showPage('manage')">
       <div class="nav-icon">📺</div>
       <span class="nav-label">Каналы</span>
     </div>
-    <div class="nav-item" id="nav-donate" onclick="showPage('donate')">
+    <div class="nav-item" id="nav-donate"           onclick="showPage('donate')">
       <div class="nav-icon">💎</div>
       <span class="nav-label">Донат</span>
       <div class="nav-dot"></div>
     </div>
-    <div class="nav-item" id="nav-settings" onclick="showPage('settings')">
+    <div class="nav-item" id="nav-settings"         onclick="showPage('settings')">
       <div class="nav-icon">⚙️</div>
       <span class="nav-label">Настройки</span>
     </div>
