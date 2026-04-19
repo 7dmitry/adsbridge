@@ -418,8 +418,8 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
       }
     }
 
-    const price24  = ch.pricead_24  ? `${ch.pricead_24}ꘜ`  : '—';
-    const priceAll = ch.pricead_all ? `${ch.pricead_all}ꘜ` : '—';
+    const price24  = ch.pricead_24  ? `$${ch.pricead_24}`  : '—';
+    const priceAll = ch.pricead_all ? `$${ch.pricead_all}` : '—';
 
     const text =
       `📢 *${ch.name}*\n` +

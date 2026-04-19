@@ -18,17 +18,12 @@ const API = 'https://adsway.up.railway.app/api';
 async function apiFetch(path, options = {}) {
   try {
     const res = await fetch(API + path, {
-      headers: {
-        'Content-Type': 'application/json',
+      headers: { 'Content-Type': 'application/json',
         'x-telegram-init-data': tg?.initData || '',
       },
       ...options,
     });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      // Возвращаем объект с флагом ошибки и статусом
-      return { __error: true, status: res.status, message: errData.error || 'Ошибка сервера' };
-    }
+    if (!res.ok) throw new Error('Ошибка сервера: ' + res.status);
     return await res.json();
   } catch (err) {
     showToast('⚠️ Нет связи с сервером', 'error');
@@ -44,45 +39,6 @@ let currentFcat = 'all';
 let selectedAmount = 250;
 let showFavPage = false;
 let editingChannelId = null; // ID канала при редактировании
-
-// ── Валюты ────────────────────────────────────────────────────────────────────
-const CURRENCIES = {
-  TON:   { symbol: 'ꘜ', name: 'TON'            },
-  RUB:   { symbol: '₽', name: 'RUB'            },
-  KZT:   { symbol: '₸', name: 'KZT'            },
-  USD:   { symbol: '$', name: 'USD'            },
-  STARS: { symbol: '⭐', name: 'Telegram Stars' },
-};
-
-// Дефолтные настройки валюты (по умолчанию основная — ₽)
-const DEFAULT_CURRENCY_SETTINGS = {
-  primary: 'RUB',
-  secondary: ['TON'],
-};
-
-function getCurrencySettings() {
-  return JSON.parse(localStorage.getItem('adhub_currency') || JSON.stringify(DEFAULT_CURRENCY_SETTINGS));
-}
-function saveCurrencySettings(s) {
-  localStorage.setItem('adhub_currency', JSON.stringify(s));
-}
-
-// Просто добавляем символ основной валюты к числу
-function formatPrice(price, currencyKey) {
-  if (!price) return null;
-  const sym = CURRENCIES[currencyKey]?.symbol || '';
-  return `${price}${sym}`;
-}
-
-// Строка "Возможно оплатить: ꘜ, ₽"
-function buildPaymentBadge(ch) {
-  const cs = getCurrencySettings();
-  const allCurrencies = [cs.primary, ...cs.secondary];
-  if (!ch.price24 && !ch.priceAll) return '';
-  const symbols = allCurrencies.map(k => CURRENCIES[k]?.symbol).filter(Boolean);
-  if (symbols.length === 0) return '';
-  return `<div class="payment-badge">Возможно оплатить: ${symbols.join(', ')}</div>`;
-}
 
 // ── Категории ─────────────────────────────────────────────────────────────────
 const CAT_NAMES = {
@@ -252,13 +208,9 @@ async function toggleCollab(channelId, el) {
 
 // ── Channel card HTML ─────────────────────────────────────────────────────────
 function buildCard(ch) {
-  const cs = getCurrencySettings();
-  const prim = cs.primary;
-
-  const price24str  = ch.price24  ? formatPrice(ch.price24,  prim) : '—';
-  const priceAllStr = ch.priceAll ? formatPrice(ch.priceAll, prim) : null;
-  const payBadge = buildPaymentBadge(ch);
-
+  const isFav = favorites.includes(ch.id);
+  const price24 = ch.price24 ? `$${ch.price24}/24ч` : '—';
+  const priceAll = ch.priceAll ? `$${ch.priceAll}/∞` : '';
   return `
   <div class="ch-card" onclick="openModal(${ch.id})">
     <div class="ch-top">
@@ -288,12 +240,11 @@ function buildCard(ch) {
       <div class="metric"><span>📋</span><strong>Реклама</strong></div>
     </div>
     <div class="ch-bottom">
-      <div class="price-badge">💰 ${price24str}${priceAllStr ? ' · ' + priceAllStr : ''}</div>
+      <div class="price-badge">💰 ${price24}${priceAll ? ' · ' + priceAll : ''}</div>
       <div class="ch-action-btns">
         <button class="ch-btn ch-btn-primary" onclick="event.stopPropagation();contactChannel(${ch.id})">📩 Связаться</button>
       </div>
     </div>
-    ${payBadge}
   </div>`;
 }
 
@@ -318,8 +269,6 @@ document.getElementById('homeCats').addEventListener('click', e => {
 });
 
 // ── SEARCH ────────────────────────────────────────────────────────────────────
-let currentFcurr = 'all'; // фильтр по валюте
-
 async function doSearch() {
   if (CHANNELS.length === 0) await loadChannels();
 
@@ -329,20 +278,16 @@ async function doSearch() {
   const priceMin = parseFloat(document.getElementById('priceMin').value) || 0;
   const priceMax = parseFloat(document.getElementById('priceMax').value) || Infinity;
 
-  // Фильтр цены — сравниваем напрямую с числом в БД (в валюте владельца канала)
   let data = CHANNELS.filter(c => {
     if (currentFcat !== 'all' && c.cat !== currentFcat) return false;
     if (q && !c.name.toLowerCase().includes(q) && !c.username.toLowerCase().includes(q) && !c.desc.toLowerCase().includes(q)) return false;
     if (c.subs < subsMin || c.subs > subsMax) return false;
-    const p = parseFloat(c.price24) || 0;
-    if (p < priceMin || p > priceMax) return false;
-    // Фильтр по валюте: показываем только каналы у которых есть цена
-    if (currentFcurr !== 'all' && !c.price24 && !c.priceAll) return false;
+    if (c.price < priceMin || c.price > priceMax) return false;
     return true;
   });
 
   if (currentSort === 'subs')  data = [...data].sort((a,b) => b.subs - a.subs);
-  if (currentSort === 'price') data = [...data].sort((a,b) => (parseFloat(a.price24)||0) - (parseFloat(b.price24)||0));
+  if (currentSort === 'price') data = [...data].sort((a,b) => a.price - b.price);
   if (currentSort === 'er')    data = [...data].sort((a,b) => b.er - a.er);
 
   const list = document.getElementById('searchList');
@@ -361,17 +306,6 @@ function setFcat(el) {
   document.querySelectorAll('.fcat').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
   currentFcat = el.dataset.fcat;
-  doSearch();
-}
-
-function setFcurr(el) {
-  document.querySelectorAll('.fcurr').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-  currentFcurr = el.dataset.fcurr;
-  // Обновляем подпись фильтра цены
-  const sym = currentFcurr !== 'all' ? CURRENCIES[currentFcurr]?.symbol : '$';
-  const lbl = document.getElementById('priceCurrLabel');
-  if (lbl) lbl.textContent = `Цена рекламы 24ч (мин – макс, ${sym || '$'})`;
   doSearch();
 }
 
@@ -408,12 +342,12 @@ async function renderManagePage() {
     </div>
     <div class="form-row">
       <div class="form-group" style="flex:1">
-        <label class="form-label">Цена рекламы 24ч (ꘜ)</label>
-        <input class="form-input" id="fPrice24" placeholder="5">
+        <label class="form-label">Цена рекламы 24ч ($)</label>
+        <input class="form-input" id="fPrice24" placeholder="100">
       </div>
       <div class="form-group" style="flex:1">
-        <label class="form-label">Цена навсегда (ꘜ)</label>
-        <input class="form-input" id="fPriceAll" placeholder="13">
+        <label class="form-label">Цена навсегда ($)</label>
+        <input class="form-input" id="fPriceAll" placeholder="200">
       </div>
     </div>
     <div class="form-actions">
@@ -446,8 +380,8 @@ async function renderManagePage() {
         <div class="manage-ch-name">${ch.name}</div>
         <div class="manage-ch-meta">@${ch.usname} · ${CAT_NAMES[ch.category] || ch.category} · ${fmt(ch.subscribers || 0)} подп.</div>
         <div class="manage-ch-prices">
-          ${ch.pricead_24 ? `<span class="tag">24ч: ${ch.pricead_24}ꘜ</span>` : ''}
-          ${ch.pricead_all ? `<span class="tag">∞: ${ch.pricead_all}ꘜ</span>` : ''}
+          ${ch.pricead_24 ? `<span class="tag">24ч: $${ch.pricead_24}</span>` : ''}
+          ${ch.pricead_all ? `<span class="tag">∞: $${ch.pricead_all}</span>` : ''}
         </div>
       </div>
       <div class="manage-ch-btns">
@@ -694,20 +628,9 @@ async function contactChannel(channelId) {
 function openModal(id) {
   const ch = CHANNELS.find(c => c.id === id);
   if (!ch) return;
-  const cs = getCurrencySettings();
-  const prim = cs.primary;
-  const secs = cs.secondary || [];
-
-  const price24str  = ch.price24  ? formatPrice(ch.price24,  prim) : '—';
-  const priceAllStr = ch.priceAll ? formatPrice(ch.priceAll, prim) : '—';
-
-  // Плашка "Возможно оплатить"
-  const allCurrKeys = [prim, ...secs];
-  const paySymbols  = allCurrKeys.map(k => CURRENCIES[k]?.symbol).filter(Boolean);
-  const payLine     = (ch.price24 || ch.priceAll) && paySymbols.length
-    ? `<div class="modal-pay-badge">Возможно оплатить: ${paySymbols.join(', ')}</div>`
-    : '';
-
+  const isFav = favorites.includes(ch.id);
+  const price24str  = ch.price24  ? `$${ch.price24}` : '—';
+  const priceAllStr = ch.priceAll ? `$${ch.priceAll}` : '—';
   document.getElementById('modalContent').innerHTML = `
     <div class="modal-ch-header">
       <div class="modal-avatar">
@@ -743,7 +666,6 @@ function openModal(id) {
         <div class="modal-stat-key">Реклама навсегда</div>
       </div>
     </div>
-    ${payLine}
     ${ch.desc ? `<p class="modal-desc">${ch.desc}</p>` : ''}
     <div class="modal-btns">
       <button class="modal-btn modal-btn-primary" onclick="contactChannel(${ch.id});closeModal()">
@@ -807,69 +729,6 @@ function initSettings() {
   });
 
   renderCollabSettings();
-  renderCurrencySettings();
-}
-
-// ── Настройки валют ───────────────────────────────────────────────────────────
-function renderCurrencySettings() {
-  const cs = getCurrencySettings();
-  const container = document.getElementById('currencySettingsBlock');
-  if (!container) return;
-
-  container.innerHTML = `
-    <div class="settings-section">
-      <div class="set-group-title">Основная валюта</div>
-      <div class="currency-grid primary-currency-grid">
-        ${Object.entries(CURRENCIES).map(([key, cur]) => `
-          <div class="currency-opt ${cs.primary === key ? 'active' : ''}" 
-               onclick="setPrimaryCurrency('${key}')" data-key="${key}">
-            <span class="curr-symbol">${cur.symbol}</span>
-            <span class="curr-name">${key}</span>
-          </div>
-        `).join('')}
-      </div>
-      <div class="set-group-title" style="margin-top:14px">Дополнительные валюты</div>
-      <div class="currency-grid secondary-currency-grid">
-        ${Object.entries(CURRENCIES).map(([key, cur]) => `
-          <div class="currency-opt secondary ${cs.secondary.includes(key) ? 'active' : ''} ${cs.primary === key ? 'disabled' : ''}" 
-               onclick="toggleSecondaryCurrency('${key}')" data-key="${key}">
-            <span class="curr-symbol">${cur.symbol}</span>
-            <span class="curr-name">${key}</span>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
-}
-
-function setPrimaryCurrency(key) {
-  const cs = getCurrencySettings();
-  cs.primary = key;
-  // Убрать из secondary если там есть
-  cs.secondary = cs.secondary.filter(k => k !== key);
-  saveCurrencySettings(cs);
-  renderCurrencySettings();
-  // Перерисовать карточки
-  if (document.getElementById('page-home').classList.contains('active')) renderHome('all');
-  if (document.getElementById('page-search').classList.contains('active')) doSearch();
-  showToast(`✅ Основная валюта: ${CURRENCIES[key].symbol} ${key}`);
-  if (tg) tg.HapticFeedback?.impactOccurred('light');
-}
-
-function toggleSecondaryCurrency(key) {
-  const cs = getCurrencySettings();
-  if (cs.primary === key) return; // нельзя выбрать основную как доп
-  const idx = cs.secondary.indexOf(key);
-  if (idx === -1) {
-    cs.secondary.push(key);
-  } else {
-    cs.secondary.splice(idx, 1);
-  }
-  saveCurrencySettings(cs);
-  renderCurrencySettings();
-  if (document.getElementById('page-home').classList.contains('active')) renderHome('all');
-  if (document.getElementById('page-search').classList.contains('active')) doSearch();
-  if (tg) tg.HapticFeedback?.impactOccurred('light');
 }
 
 function toggleSetting(key) {
