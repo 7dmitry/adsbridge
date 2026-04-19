@@ -288,7 +288,7 @@ function buildCard(ch) {
       <div class="metric"><span>📋</span><strong>Реклама</strong></div>
     </div>
     <div class="ch-bottom">
-      <div class="price-badge">💰 ${price24str}${priceAllMain ? ' · ' + priceAllStr : ''}</div>
+      <div class="price-badge">💰 ${price24str}${priceAllStr ? ' · ' + priceAllStr : ''}</div>
       <div class="ch-action-btns">
         <button class="ch-btn ch-btn-primary" onclick="event.stopPropagation();contactChannel(${ch.id})">📩 Связаться</button>
       </div>
@@ -381,7 +381,7 @@ function toggleFilters() {
   p.classList.toggle('open');
   btn.classList.toggle('active');
   btn.textContent = p.classList.contains('open') ? '⚙️ Скрыть' : '⚙️ Фильтры';
-}
+}}
 
 // ── MANAGE PAGE ───────────────────────────────────────────────────────────────
 async function renderManagePage() {
