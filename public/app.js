@@ -381,7 +381,7 @@ function toggleFilters() {
   p.classList.toggle('open');
   btn.classList.toggle('active');
   btn.textContent = p.classList.contains('open') ? '⚙️ Скрыть' : '⚙️ Фильтры';
-}}
+}
 
 // ── MANAGE PAGE ───────────────────────────────────────────────────────────────
 async function renderManagePage() {
