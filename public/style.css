@@ -682,3 +682,138 @@ a {
 .verify-step-text { font-size: 13px; color: var(--text2); line-height: 1.5; }
 .verify-step-text strong { color: var(--text); }
 
+
+/* ── Валюты ──────────────────────────────────────────────────────────────── */
+.price-sec {
+  font-size: 11px;
+  color: var(--text3);
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+/* Плашка "Возможно оплатить" на карточке */
+.payment-badge {
+  margin-top: 8px;
+  padding: 5px 10px;
+  background: rgba(99,102,241,.10);
+  border: 1px solid rgba(99,102,241,.22);
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--accent2, #a78bfa);
+  font-weight: 500;
+  letter-spacing: .01em;
+}
+
+/* Плашка в модальном окне */
+.modal-pay-badge {
+  margin: 10px 0 4px;
+  padding: 7px 12px;
+  background: rgba(99,102,241,.12);
+  border: 1px solid rgba(99,102,241,.25);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--accent2, #a78bfa);
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: .02em;
+}
+
+/* Доп. цены в стат-ячейке модального окна */
+.modal-stat-sec {
+  font-size: 11px;
+  color: var(--text3);
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+/* ── Настройки валют ─────────────────────────────────────────────────────── */
+.set-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: 8px 2px 6px;
+}
+
+.currency-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0 8px;
+}
+
+.currency-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 14px;
+  background: var(--bg3);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all .18s;
+  min-width: 56px;
+  user-select: none;
+}
+
+.currency-opt:hover {
+  border-color: var(--accent);
+  background: rgba(99,102,241,.08);
+}
+
+.currency-opt.active {
+  border-color: var(--accent);
+  background: rgba(99,102,241,.15);
+}
+
+.currency-opt.disabled {
+  opacity: .35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.currency-opt .curr-symbol {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+}
+
+.currency-opt.active .curr-symbol {
+  color: var(--accent);
+}
+
+.currency-opt .curr-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text3);
+  letter-spacing: .04em;
+}
+
+.currency-opt.active .curr-name {
+  color: var(--accent2, #a78bfa);
+}
+
+/* ── Фильтр по валюте в поиске ───────────────────────────────────────────── */
+.fcurr {
+  padding: 5px 11px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+
+.fcurr:hover { border-color: var(--accent); color: var(--text); }
+.fcurr.active {
+  background: rgba(99,102,241,.18);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}

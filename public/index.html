@@ -122,10 +122,21 @@
           </div>
         </div>
         <div class="filter-group" style="margin-bottom:0">
-          <div class="filter-label">Цена рекламы 24ч (мин – макс, $)</div>
+          <div class="filter-label" id="priceCurrLabel">Цена рекламы 24ч (мин – макс, ꘜ)</div>
           <div class="range-row">
             <input class="range-input" id="priceMin" type="number" placeholder="0" oninput="doSearch()">
             <input class="range-input" id="priceMax" type="number" placeholder="∞" oninput="doSearch()">
+          </div>
+        </div>
+        <div class="filter-group" style="margin-bottom:0; margin-top:12px">
+          <div class="filter-label">Валюта поиска цены</div>
+          <div class="filter-cats" id="filterCurrs">
+            <div class="fcurr active" data-fcurr="all" onclick="setFcurr(this)">Все</div>
+            <div class="fcurr" data-fcurr="TON" onclick="setFcurr(this)">ꘜ TON</div>
+            <div class="fcurr" data-fcurr="RUB" onclick="setFcurr(this)">₽ RUB</div>
+            <div class="fcurr" data-fcurr="KZT" onclick="setFcurr(this)">₸ KZT</div>
+            <div class="fcurr" data-fcurr="USD" onclick="setFcurr(this)">$ USD</div>
+            <div class="fcurr" data-fcurr="STARS" onclick="setFcurr(this)">⭐ Stars</div>
           </div>
         </div>
       </div>
@@ -167,12 +178,12 @@
         </div>
         <div class="form-row">
           <div class="form-group" style="flex:1">
-            <label class="form-label">Цена рекламы 24ч ($)</label>
-            <input class="form-input" id="fPrice24" placeholder="100">
+            <label class="form-label">Цена рекламы 24ч (ꘜ)</label>
+            <input class="form-input" id="fPrice24" placeholder="5">
           </div>
           <div class="form-group" style="flex:1">
-            <label class="form-label">Цена навсегда ($)</label>
-            <input class="form-input" id="fPriceAll" placeholder="200">
+            <label class="form-label">Цена навсегда (ꘜ)</label>
+            <input class="form-input" id="fPriceAll" placeholder="13">
           </div>
         </div>
 
@@ -271,6 +282,11 @@
           <div class="empty-title" style="font-size:13px">Загрузка каналов…</div>
         </div>
       </div>
+      <p class="section-title">Валюта отображения</p>
+      <div id="currencySettingsBlock">
+        <!-- JS вставит настройки валют -->
+      </div>
+
       <p class="section-title">Аккаунт</p>
       <div class="settings-section">
         <div class="setting-item" onclick="showPage('manage')">
@@ -294,7 +310,7 @@
         <div class="setting-item">
           <div class="set-icon purple">📢</div>
           <div class="set-text">
-            <a href="https://t.me/+g2HZlLoK-7gyMmEy" target="_blank">
+            <a href="https://t.me/AdsWay_Official" target="_blank">
               <div class="set-title">Наш канал</div>
               <div class="set-sub">@AdsWay_official</div>
             </a>  
