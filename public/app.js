@@ -163,12 +163,6 @@ function fmt(n) {
   return n.toString();
 }
 
-// Форматирование цен — без сокращений
-function fmtPrice(n) {
-  if (n === null || n === undefined || n === '') return null;
-  return parseFloat(n).toString();
-}
-
 // ── Получить символ валюты канала ─────────────────────────────────────────────
 function getCurrSymbol(currCode) {
   return CURRENCIES[currCode]?.symbol || currCode || '₽';
@@ -183,11 +177,9 @@ function getChannelPayCurrencies(ch) {
 
 // ── Channel card HTML ─────────────────────────────────────────────────────────
 function buildCard(ch) {
-  const payCurrs = getChannelPayCurrencies(ch);
-  const displayCurr = payCurrs.includes(userCurrencyPrimary) ? userCurrencyPrimary : ch.currency;
-  const sym = getCurrSymbol(displayCurr);
-  const price24  = ch.price24  ? `${fmtPrice(ch.price24)}${sym}/24ч` : '—';
-  const priceAll = ch.priceAll ? `${fmtPrice(ch.priceAll)}${sym}/∞`  : '';
+  const sym      = getCurrSymbol(userCurrencyPrimary || ch.currency);
+  const price24  = ch.price24  ? `${ch.price24}${sym}/24ч` : '—';
+  const priceAll = ch.priceAll ? `${ch.priceAll}${sym}/∞`  : '';
   return `
   <div class="ch-card" onclick="openModal(${ch.id})">
     <div class="ch-top">
@@ -362,11 +354,9 @@ function openModal(id) {
   const ch = CHANNELS.find(c => c.id === id);
   if (!ch) return;
 
-  const payCurrs2  = getChannelPayCurrencies(ch);
-  const displayCurr2 = payCurrs2.includes(userCurrencyPrimary) ? userCurrencyPrimary : ch.currency;
-  const sym        = getCurrSymbol(displayCurr2);
-  const price24str = ch.price24  ? `${fmtPrice(ch.price24)}${sym}`  : '—';
-  const priceAllStr= ch.priceAll ? `${fmtPrice(ch.priceAll)}${sym}` : '—';
+  const sym        = getCurrSymbol(userCurrencyPrimary || ch.currency);
+  const price24str = ch.price24  ? `${ch.price24}${sym}`  : '—';
+  const priceAllStr= ch.priceAll ? `${ch.priceAll}${sym}` : '—';
 
   // Принимаемые валюты
   const payCurrs = getChannelPayCurrencies(ch);
@@ -666,7 +656,6 @@ async function editChannel(id) {
   if (document.getElementById('fCategory')) document.getElementById('fCategory').value = data.category || '';
   if (document.getElementById('fPrice24'))  document.getElementById('fPrice24').value  = data.pricead_24 || '';
   if (document.getElementById('fPriceAll')) document.getElementById('fPriceAll').value = data.pricead_all || '';
-
   const title = document.getElementById('manageFormTitle');
   if (title) title.textContent = '✏️ Редактировать канал';
 
@@ -701,7 +690,6 @@ function resetForm() {
   if (document.getElementById('fCategory')) document.getElementById('fCategory').value  = '';
   if (document.getElementById('fPrice24'))  document.getElementById('fPrice24').value   = '';
   if (document.getElementById('fPriceAll')) document.getElementById('fPriceAll').value  = '';
-
   const title     = document.getElementById('manageFormTitle');
   const submitBtn = document.getElementById('formSubmitBtn');
   const cancelBtn = document.getElementById('formCancelBtn');
@@ -988,7 +976,6 @@ function emptyState(title, sub) {
 async function init() {
   registerUser();
   loadStats();
-  // Загружаем валюту пользователя ДО рендера карточек
   const user = tg?.initDataUnsafe?.user;
   if (user?.id) {
     const data = await apiFetch(`/users/${user.id}/currency`);
