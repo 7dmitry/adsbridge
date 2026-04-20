@@ -1,4 +1,9 @@
 // ── Telegram WebApp init ──────────────────────────────────────────────────────
+
+// git add .
+// git commit -m "fix db connection"
+// git push
+
 const tg = window.Telegram?.WebApp;
 if (tg) {
   tg.ready();
@@ -811,13 +816,13 @@ function renderCurrencySettingsUI(block) {
         <div class="currency-options" id="primaryCurrOptions">
           ${ALL_CURRENCIES.map(c => `
             <div class="currency-option ${c === _tempPrimary ? 'selected' : ''}"
-                 onclick="selectPrimary('${c}')">
+                 data-action="primary" data-code="${c}">
               <span class="curr-opt-symbol">${CURRENCIES[c].symbol}</span>
               <div class="curr-opt-info">
                 <span class="curr-opt-name">${CURRENCIES[c].name}</span>
                 <span class="curr-opt-label">${CURRENCIES[c].label}</span>
               </div>
-              ${c === _tempPrimary ? '<span class="curr-opt-check">✓</span>' : ''}
+              <span class="curr-opt-check" style="${c === _tempPrimary ? '' : 'opacity:0'}">✓</span>
             </div>`).join('')}
         </div>
       </div>
@@ -827,42 +832,62 @@ function renderCurrencySettingsUI(block) {
         <div class="currency-options" id="extraCurrOptions">
           ${ALL_CURRENCIES.filter(c => c !== _tempPrimary).map(c => `
             <div class="currency-option extra ${_tempExtras.includes(c) ? 'selected' : ''}"
-                 onclick="toggleExtraCurr('${c}')">
+                 data-action="extra" data-code="${c}">
               <span class="curr-opt-symbol">${CURRENCIES[c].symbol}</span>
               <div class="curr-opt-info">
                 <span class="curr-opt-name">${CURRENCIES[c].name}</span>
                 <span class="curr-opt-label">${CURRENCIES[c].label}</span>
               </div>
-              ${_tempExtras.includes(c) ? '<span class="curr-opt-check">✓</span>' : '<span class="curr-opt-check" style="opacity:0">✓</span>'}
+              <span class="curr-opt-check" style="${_tempExtras.includes(c) ? '' : 'opacity:0'}">✓</span>
             </div>`).join('')}
         </div>
       </div>
 
-      <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:16px;padding:13px"
-              onclick="saveCurrencySettings()">
+      <button class="btn btn-primary" id="saveCurrBtn"
+              style="width:100%;justify-content:center;margin-top:16px;padding:13px">
         💾 Сохранить настройки валют
       </button>
     </div>
   `;
+
+  // ── Event delegation — надёжно работает в Telegram WebApp ────────────────
+  block.addEventListener('click', _onCurrencyClick);
 }
 
-function selectPrimary(code) {
-  _tempPrimary = code;
-  _tempExtras  = _tempExtras.filter(c => c !== code);
-  const block = document.getElementById('currencySettingsBlock');
-  if (block) renderCurrencySettingsUI(block);
-  if (tg) tg.HapticFeedback?.impactOccurred('light');
-}
-
-function toggleExtraCurr(code) {
-  if (_tempExtras.includes(code)) {
-    _tempExtras = _tempExtras.filter(c => c !== code);
-  } else {
-    _tempExtras.push(code);
+// Единый обработчик для всего блока настроек валюты
+function _onCurrencyClick(e) {
+  // Кнопка «Сохранить»
+  if (e.target.closest('#saveCurrBtn')) {
+    saveCurrencySettings();
+    return;
   }
-  const block = document.getElementById('currencySettingsBlock');
-  if (block) renderCurrencySettingsUI(block);
+
+  // Клик по опции (или любому её дочернему элементу)
+  const option = e.target.closest('.currency-option[data-action]');
+  if (!option) return;
+
+  const code   = option.dataset.code;
+  const action = option.dataset.action;
+
+  if (action === 'primary') {
+    _tempPrimary = code;
+    _tempExtras  = _tempExtras.filter(c => c !== code);
+  } else if (action === 'extra') {
+    if (_tempExtras.includes(code)) {
+      _tempExtras = _tempExtras.filter(c => c !== code);
+    } else {
+      _tempExtras.push(code);
+    }
+  }
+
   if (tg) tg.HapticFeedback?.impactOccurred('light');
+
+  // Перерисовываем блок: сначала снимаем старый listener, потом рисуем заново
+  const block = document.getElementById('currencySettingsBlock');
+  if (block) {
+    block.removeEventListener('click', _onCurrencyClick);
+    renderCurrencySettingsUI(block);
+  }
 }
 
 async function saveCurrencySettings() {
