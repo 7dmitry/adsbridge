@@ -163,6 +163,12 @@ function fmt(n) {
   return n.toString();
 }
 
+// Форматирование цен — без сокращений
+function fmtPrice(n) {
+  if (n === null || n === undefined || n === '') return null;
+  return parseFloat(n).toString();
+}
+
 // ── Получить символ валюты канала ─────────────────────────────────────────────
 function getCurrSymbol(currCode) {
   return CURRENCIES[currCode]?.symbol || currCode || '₽';
@@ -180,8 +186,8 @@ function buildCard(ch) {
   const payCurrs = getChannelPayCurrencies(ch);
   const displayCurr = payCurrs.includes(userCurrencyPrimary) ? userCurrencyPrimary : ch.currency;
   const sym = getCurrSymbol(displayCurr);
-  const price24  = ch.price24  ? `${ch.price24}${sym}/24ч` : '—';
-  const priceAll = ch.priceAll ? `${ch.priceAll}${sym}/∞`  : '';
+  const price24  = ch.price24  ? `${fmtPrice(ch.price24)}${sym}/24ч` : '—';
+  const priceAll = ch.priceAll ? `${fmtPrice(ch.priceAll)}${sym}/∞`  : '';
   return `
   <div class="ch-card" onclick="openModal(${ch.id})">
     <div class="ch-top">
@@ -356,9 +362,11 @@ function openModal(id) {
   const ch = CHANNELS.find(c => c.id === id);
   if (!ch) return;
 
-  const sym        = getCurrSymbol(ch.currency);
-  const price24str = ch.price24  ? `${ch.price24}${sym}`  : '—';
-  const priceAllStr= ch.priceAll ? `${ch.priceAll}${sym}` : '—';
+  const payCurrs2  = getChannelPayCurrencies(ch);
+  const displayCurr2 = payCurrs2.includes(userCurrencyPrimary) ? userCurrencyPrimary : ch.currency;
+  const sym        = getCurrSymbol(displayCurr2);
+  const price24str = ch.price24  ? `${fmtPrice(ch.price24)}${sym}`  : '—';
+  const priceAllStr= ch.priceAll ? `${fmtPrice(ch.priceAll)}${sym}` : '—';
 
   // Принимаемые валюты
   const payCurrs = getChannelPayCurrencies(ch);
@@ -449,23 +457,13 @@ async function renderManagePage() {
         <option value="other">🌍 Другое</option>
       </select>
     </div>
-    <div class="form-group">
-      <label class="form-label">Валюта цен</label>
-      <select class="form-input" id="fCurrency" onchange="updatePriceLabels()">
-        <option value="RUB">₽ RUB — Российский рубль</option>
-        <option value="KZT">₸ KZT — Тенге</option>
-        <option value="TON">ꘜ TON — Toncoin</option>
-        <option value="USD">$ USD — Доллар</option>
-        <option value="STARS">⭐️ Stars — Telegram Stars</option>
-      </select>
-    </div>
     <div class="form-row">
       <div class="form-group" style="flex:1">
-        <label class="form-label" id="label24">Цена рекламы 24ч (₽)</label>
+        <label class="form-label" id="label24">Цена рекламы 24ч (${getCurrSymbol(userCurrencyPrimary)})</label>
         <input class="form-input" id="fPrice24" placeholder="500" type="number">
       </div>
       <div class="form-group" style="flex:1">
-        <label class="form-label" id="labelAll">Цена навсегда (₽)</label>
+        <label class="form-label" id="labelAll">Цена навсегда (${getCurrSymbol(userCurrencyPrimary)})</label>
         <input class="form-input" id="fPriceAll" placeholder="1000" type="number">
       </div>
     </div>
@@ -532,7 +530,7 @@ async function submitChannel() {
   const category = document.getElementById('fCategory')?.value;
   const price24  = document.getElementById('fPrice24')?.value.trim();
   const priceAll = document.getElementById('fPriceAll')?.value.trim();
-  const currency = document.getElementById('fCurrency')?.value || 'RUB';
+  const currency = userCurrencyPrimary || 'RUB';
 
   if (!usname || !category) {
     showToast('⚠️ Заполните обязательные поля', 'error');
@@ -668,9 +666,6 @@ async function editChannel(id) {
   if (document.getElementById('fCategory')) document.getElementById('fCategory').value = data.category || '';
   if (document.getElementById('fPrice24'))  document.getElementById('fPrice24').value  = data.pricead_24 || '';
   if (document.getElementById('fPriceAll')) document.getElementById('fPriceAll').value = data.pricead_all || '';
-  if (document.getElementById('fCurrency')) document.getElementById('fCurrency').value = data.currency || 'RUB';
-
-  updatePriceLabels();
 
   const title = document.getElementById('manageFormTitle');
   if (title) title.textContent = '✏️ Редактировать канал';
@@ -706,7 +701,6 @@ function resetForm() {
   if (document.getElementById('fCategory')) document.getElementById('fCategory').value  = '';
   if (document.getElementById('fPrice24'))  document.getElementById('fPrice24').value   = '';
   if (document.getElementById('fPriceAll')) document.getElementById('fPriceAll').value  = '';
-  if (document.getElementById('fCurrency')) document.getElementById('fCurrency').value  = 'RUB';
 
   const title     = document.getElementById('manageFormTitle');
   const submitBtn = document.getElementById('formSubmitBtn');
@@ -714,7 +708,6 @@ function resetForm() {
   if (title)     title.textContent          = '➕ Добавить канал';
   if (submitBtn) submitBtn.textContent      = '➕ Добавить';
   if (cancelBtn) cancelBtn.style.display   = 'none';
-  updatePriceLabels();
 }
 
 // ── Collab settings ───────────────────────────────────────────────────────────
@@ -912,7 +905,6 @@ async function saveCurrencySettings() {
     userCurrencyExtra   = _tempExtras;
     showToast('✅ Валюты сохранены!', 'success');
     if (tg) tg.HapticFeedback?.notificationOccurred('success');
-    // Перерисовываем карточки с новой валютой
     renderHome('all');
     doSearch();
   }
@@ -996,7 +988,6 @@ function emptyState(title, sub) {
 async function init() {
   registerUser();
   loadStats();
-
   // Загружаем валюту пользователя ДО рендера карточек
   const user = tg?.initDataUnsafe?.user;
   if (user?.id) {
@@ -1006,10 +997,8 @@ async function init() {
       userCurrencyExtra   = Array.isArray(data.currency_extra) ? data.currency_extra : [];
     }
   }
-
   renderHome('all');
   doSearch();
   initSettings();
 }
-
 init();
