@@ -177,7 +177,9 @@ function getChannelPayCurrencies(ch) {
 
 // ── Channel card HTML ─────────────────────────────────────────────────────────
 function buildCard(ch) {
-  const sym    = getCurrSymbol(ch.currency);
+  const payCurrs = getChannelPayCurrencies(ch);
+  const displayCurr = payCurrs.includes(userCurrencyPrimary) ? userCurrencyPrimary : ch.currency;
+  const sym    = getCurrSymbol(displayCurr);
   const price24  = ch.price24  ? `${ch.price24}${sym}/24ч` : '—';
   const priceAll = ch.priceAll ? `${ch.priceAll}${sym}/∞`  : '';
   return `
