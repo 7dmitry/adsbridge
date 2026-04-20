@@ -447,16 +447,6 @@ async function renderManagePage() {
         <option value="other">🌍 Другое</option>
       </select>
     </div>
-    <div class="form-group">
-      <label class="form-label">Валюта цен</label>
-      <select class="form-input" id="fCurrency" onchange="updatePriceLabels()">
-        <option value="RUB">₽ RUB — Российский рубль</option>
-        <option value="KZT">₸ KZT — Тенге</option>
-        <option value="TON">ꘜ TON — Toncoin</option>
-        <option value="USD">$ USD — Доллар</option>
-        <option value="STARS">⭐️ Stars — Telegram Stars</option>
-      </select>
-    </div>
     <div class="form-row">
       <div class="form-group" style="flex:1">
         <label class="form-label" id="label24">Цена рекламы 24ч (₽)</label>
