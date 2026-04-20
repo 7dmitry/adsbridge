@@ -11,10 +11,10 @@ if (tg) {
   tg.setHeaderColor('#0a0a0f');
   tg.setBackgroundColor('#0a0a0f');
 }
- 
+
 // ── API ───────────────────────────────────────────────────────────────────────
 const API = 'https://adsway.up.railway.app/api';
- 
+
 async function apiFetch(path, options = {}) {
   try {
     const res = await fetch(API + path, {
@@ -31,7 +31,7 @@ async function apiFetch(path, options = {}) {
     return null;
   }
 }
- 
+
 // ── Валюты ────────────────────────────────────────────────────────────────────
 const CURRENCIES = {
   RUB:   { symbol: '₽',  name: 'RUB',   label: 'Российский рубль' },
@@ -40,13 +40,13 @@ const CURRENCIES = {
   USD:   { symbol: '$',  name: 'USD',   label: 'Доллар США' },
   STARS: { symbol: '⭐️', name: 'Stars', label: 'Telegram Stars' },
 };
- 
+
 const ALL_CURRENCIES = ['RUB', 'KZT', 'TON', 'USD', 'STARS'];
- 
+
 // Состояние валют пользователя
 let userCurrencyPrimary = 'RUB';
 let userCurrencyExtra   = [];
- 
+
 // ── Data ──────────────────────────────────────────────────────────────────────
 let CHANNELS = [];
 let favorites = JSON.parse(localStorage.getItem('adhub_favs') || '[]');
@@ -56,14 +56,14 @@ let currentFcurr = 'all';
 let selectedAmount = 250;
 let showFavPage = false;
 let editingChannelId = null;
- 
+
 // ── Категории ─────────────────────────────────────────────────────────────────
 const CAT_NAMES = {
   tech:'Технологии', business:'Бизнес', games:'Игры', art:'Творчество',
   finance:'Финансы', news:'Новости', entertainment:'Развлечения',
   edu:'Образование', other:'Другое'
 };
- 
+
 // ── Регистрация пользователя ──────────────────────────────────────────────────
 async function registerUser() {
   const user = tg?.initDataUnsafe?.user;
@@ -78,7 +78,7 @@ async function registerUser() {
     }),
   });
 }
- 
+
 // ── Загрузка каналов из БД ────────────────────────────────────────────────────
 async function loadChannels(category = null, currency = null) {
   let url = '/channels';
@@ -90,12 +90,12 @@ async function loadChannels(category = null, currency = null) {
   if (!data) return;
   CHANNELS = data.map(mapChannel);
 }
- 
+
 function mapChannel(ch) {
   let extras = ch.owner_currency_extra;
   if (typeof extras === 'string') { try { extras = JSON.parse(extras); } catch { extras = []; } }
   if (!Array.isArray(extras)) extras = [];
- 
+
   return {
     id:                 ch.id,
     name:               ch.name,
@@ -115,7 +115,7 @@ function mapChannel(ch) {
     ownerCurrencyExtra: extras,
   };
 }
- 
+
 // ── Загрузка статистики ───────────────────────────────────────────────────────
 async function loadStats() {
   const data = await apiFetch('/stats');
@@ -125,7 +125,7 @@ async function loadStats() {
   document.getElementById('statPremium').textContent  = fmt(parseInt(data.premium_channels) || 0);
   document.getElementById('totalCount').textContent   = data.total_channels || 0;
 }
- 
+
 // ── Page navigation ───────────────────────────────────────────────────────────
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -140,7 +140,7 @@ function showPage(name) {
   if (name === 'manage')   renderManagePage();
   if (tg) tg.HapticFeedback?.impactOccurred('light');
 }
- 
+
 // ── Toast ─────────────────────────────────────────────────────────────────────
 function showToast(msg, type = '') {
   const c = document.getElementById('toastContainer');
@@ -155,26 +155,26 @@ function showToast(msg, type = '') {
     setTimeout(() => t.remove(), 300);
   }, 2200);
 }
- 
+
 // ── Format numbers ────────────────────────────────────────────────────────────
 function fmt(n) {
   if (n >= 1000000) return (n/1000000).toFixed(1) + 'М';
   if (n >= 1000) return (n/1000).toFixed(n >= 10000 ? 0 : 1) + 'К';
   return n.toString();
 }
- 
+
 // ── Получить символ валюты канала ─────────────────────────────────────────────
 function getCurrSymbol(currCode) {
   return CURRENCIES[currCode]?.symbol || currCode || '₽';
 }
- 
+
 // ── Получить все принимаемые валюты канала ────────────────────────────────────
 function getChannelPayCurrencies(ch) {
   const extras = Array.isArray(ch.ownerCurrencyExtra) ? ch.ownerCurrencyExtra : [];
   const all = [ch.currency, ...extras.filter(c => c !== ch.currency)];
   return all.filter(c => CURRENCIES[c]); // только известные валюты
 }
- 
+
 // ── Channel card HTML ─────────────────────────────────────────────────────────
 function buildCard(ch) {
   const sym    = getCurrSymbol(ch.currency);
@@ -216,19 +216,19 @@ function buildCard(ch) {
     </div>
   </div>`;
 }
- 
+
 // ── HOME ──────────────────────────────────────────────────────────────────────
 async function renderHome(cat) {
   const list = document.getElementById('homeList');
   list.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-title">Загрузка…</div></div>';
- 
+
   await loadChannels(cat);
- 
+
   list.innerHTML = CHANNELS.length
     ? CHANNELS.map(buildCard).join('')
     : emptyState('Нет каналов', 'Попробуйте другую категорию');
 }
- 
+
 document.getElementById('homeCats').addEventListener('click', e => {
   const pill = e.target.closest('.cat-pill');
   if (!pill) return;
@@ -236,20 +236,20 @@ document.getElementById('homeCats').addEventListener('click', e => {
   pill.classList.add('active');
   renderHome(pill.dataset.cat);
 });
- 
+
 // ── SEARCH ────────────────────────────────────────────────────────────────────
 async function doSearch() {
   if (CHANNELS.length === 0) await loadChannels();
- 
+
   const q        = document.getElementById('searchInput')?.value.toLowerCase().trim() || '';
   const subsMin  = parseInt(document.getElementById('subsMin')?.value)    || 0;
   const subsMax  = parseInt(document.getElementById('subsMax')?.value)    || Infinity;
   const priceMin = parseFloat(document.getElementById('priceMin')?.value) || 0;
   const priceMax = parseFloat(document.getElementById('priceMax')?.value) || Infinity;
- 
+
   let data = CHANNELS.filter(c => {
     if (currentFcat !== 'all' && c.cat !== currentFcat) return false;
- 
+
     // Поиск по тексту (включая валюту через поисковый запрос)
     if (q) {
       const currSymbol = getCurrSymbol(c.currency).toLowerCase();
@@ -262,23 +262,23 @@ async function doSearch() {
                       || c.currency.toLowerCase().includes(q);
       if (!textMatch) return false;
     }
- 
+
     if (c.subs < subsMin || c.subs > subsMax) return false;
     if (c.price < priceMin || c.price > priceMax) return false;
- 
+
     // Фильтр по валюте
     if (currentFcurr !== 'all') {
       const payCurrs = getChannelPayCurrencies(c);
       if (!payCurrs.includes(currentFcurr)) return false;
     }
- 
+
     return true;
   });
- 
+
   if (currentSort === 'subs')  data = [...data].sort((a,b) => b.subs - a.subs);
   if (currentSort === 'price') data = [...data].sort((a,b) => a.price - b.price);
   if (currentSort === 'er')    data = [...data].sort((a,b) => (b.er||0) - (a.er||0));
- 
+
   const list = document.getElementById('searchList');
   if (list) {
     list.innerHTML = data.length
@@ -290,21 +290,21 @@ async function doSearch() {
     info.textContent = `Найдено ${data.length} кан${data.length===1?'ал':data.length<5?'ала':'алов'}`;
   }
 }
- 
+
 function setSort(el) {
   document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
   currentSort = el.dataset.sort;
   doSearch();
 }
- 
+
 function setFcat(el) {
   document.querySelectorAll('.fcat').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
   currentFcat = el.dataset.fcat;
   doSearch();
 }
- 
+
 // ── Фильтр по валюте в поиске ─────────────────────────────────────────────────
 function setFcurr(el) {
   document.querySelectorAll('.fcurr').forEach(c => c.classList.remove('active'));
@@ -318,7 +318,7 @@ function setFcurr(el) {
   }
   doSearch();
 }
- 
+
 function toggleFilters() {
   const p = document.getElementById('filterPanel');
   const btn = document.getElementById('filterToggle');
@@ -326,16 +326,16 @@ function toggleFilters() {
   btn.classList.toggle('active');
   btn.textContent = p.classList.contains('open') ? '⚙️ Скрыть' : '⚙️ Фильтры';
 }
- 
+
 // ── MODAL ─────────────────────────────────────────────────────────────────────
 async function contactChannel(channelId) {
   const user = tg?.initDataUnsafe?.user;
- 
+
   if (!user?.id) {
     showToast('⚠️ Откройте приложение через бота', 'error');
     return;
   }
- 
+
   const result = await apiFetch('/send-message', {
     method: 'POST',
     body: JSON.stringify({
@@ -343,21 +343,21 @@ async function contactChannel(channelId) {
       channel_id: channelId,
     }),
   });
- 
+
   if (result?.ok) {
     showToast('📩 Сообщение отправлено в бот!', 'success');
     if (tg) tg.HapticFeedback?.notificationOccurred('success');
   }
 }
- 
+
 function openModal(id) {
   const ch = CHANNELS.find(c => c.id === id);
   if (!ch) return;
- 
+
   const sym        = getCurrSymbol(ch.currency);
   const price24str = ch.price24  ? `${ch.price24}${sym}`  : '—';
   const priceAllStr= ch.priceAll ? `${ch.priceAll}${sym}` : '—';
- 
+
   // Принимаемые валюты
   const payCurrs = getChannelPayCurrencies(ch);
   const payHtml  = payCurrs.length
@@ -371,7 +371,7 @@ function openModal(id) {
         </div>
       </div>`
     : '';
- 
+
   document.getElementById('modalContent').innerHTML = `
     <div class="modal-ch-header">
       <div class="modal-avatar">
@@ -417,13 +417,13 @@ function openModal(id) {
   document.getElementById('modalOverlay').classList.add('open');
   if (tg) tg.HapticFeedback?.impactOccurred('medium');
 }
- 
+
 function closeModal(e) {
   if (!e || e.target === document.getElementById('modalOverlay')) {
     document.getElementById('modalOverlay').classList.remove('open');
   }
 }
- 
+
 // ── MANAGE PAGE ───────────────────────────────────────────────────────────────
 async function renderManagePage() {
   document.getElementById('manageFormCard').innerHTML = `
@@ -447,23 +447,13 @@ async function renderManagePage() {
         <option value="other">🌍 Другое</option>
       </select>
     </div>
-    <div class="form-group">
-      <label class="form-label">Валюта цен</label>
-      <select class="form-input" id="fCurrency" onchange="updatePriceLabels()">
-        <option value="RUB">₽ RUB — Российский рубль</option>
-        <option value="KZT">₸ KZT — Тенге</option>
-        <option value="TON">ꘜ TON — Toncoin</option>
-        <option value="USD">$ USD — Доллар</option>
-        <option value="STARS">⭐️ Stars — Telegram Stars</option>
-      </select>
-    </div>
     <div class="form-row">
       <div class="form-group" style="flex:1">
-        <label class="form-label" id="label24">Цена рекламы 24ч (₽)</label>
+        <label class="form-label" id="label24">Цена рекламы 24ч (${getCurrSymbol(userCurrencyPrimary)})</label>
         <input class="form-input" id="fPrice24" placeholder="500" type="number">
       </div>
       <div class="form-group" style="flex:1">
-        <label class="form-label" id="labelAll">Цена навсегда (₽)</label>
+        <label class="form-label" id="labelAll">Цена навсегда (${getCurrSymbol(userCurrencyPrimary)})</label>
         <input class="form-input" id="fPriceAll" placeholder="1000" type="number">
       </div>
     </div>
@@ -472,25 +462,25 @@ async function renderManagePage() {
       <button class="btn btn-primary" id="formSubmitBtn" onclick="submitChannel()" style="flex:1;justify-content:center">➕ Добавить</button>
     </div>
   `;
- 
+
   resetForm();
   const user = tg?.initDataUnsafe?.user;
   const userId = user?.id;
   const list = document.getElementById('myChannelsList');
- 
+
   if (!userId) {
     list.innerHTML = emptyState('Войдите через Telegram', 'Откройте приложение через бота');
     return;
   }
- 
+
   list.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-title">Загрузка…</div></div>';
   const data = await apiFetch(`/user/${userId}/channels`);
- 
+
   if (!data || data.length === 0) {
     list.innerHTML = emptyState('Нет каналов', 'Добавьте первый канал выше');
     return;
   }
- 
+
   list.innerHTML = data.map(ch => {
     const sym = getCurrSymbol(ch.currency || 'RUB');
     return `
@@ -511,7 +501,7 @@ async function renderManagePage() {
     </div>`;
   }).join('');
 }
- 
+
 // Обновляет подписи к полям цены при смене валюты
 function updatePriceLabels() {
   const sel = document.getElementById('fCurrency');
@@ -522,7 +512,7 @@ function updatePriceLabels() {
   if (l24)  l24.textContent  = `Цена рекламы 24ч (${sym})`;
   if (lAll) lAll.textContent = `Цена навсегда (${sym})`;
 }
- 
+
 // ── Добавить / обновить канал ─────────────────────────────────────────────────
 async function submitChannel() {
   const user     = tg?.initDataUnsafe?.user;
@@ -530,13 +520,13 @@ async function submitChannel() {
   const category = document.getElementById('fCategory')?.value;
   const price24  = document.getElementById('fPrice24')?.value.trim();
   const priceAll = document.getElementById('fPriceAll')?.value.trim();
-  const currency = document.getElementById('fCurrency')?.value || 'RUB';
- 
+  const currency = userCurrencyPrimary || 'RUB';
+
   if (!usname || !category) {
     showToast('⚠️ Заполните обязательные поля', 'error');
     return;
   }
- 
+
   if (editingChannelId) {
     const data = await apiFetch(`/channels/${editingChannelId}`);
     const body = {
@@ -552,7 +542,7 @@ async function submitChannel() {
     if (result) { showToast('✅ Канал обновлён!', 'success'); resetForm(); renderManagePage(); loadStats(); }
     return;
   }
- 
+
   showVerifyStep(usname, {
     usname, category, currency,
     name: '',
@@ -561,11 +551,11 @@ async function submitChannel() {
     owner_id: user?.id || 0
   });
 }
- 
+
 // ── Шаг верификации ───────────────────────────────────────────────────────────
 function showVerifyStep(usname, channelData) {
   const botUsername = 'adsway_bot';
- 
+
   document.getElementById('manageFormCard').innerHTML = `
     <div class="manage-form-title">🔐 Подтверждение владения</div>
     <div class="verify-steps">
@@ -590,47 +580,47 @@ function showVerifyStep(usname, channelData) {
       </button>
     </div>
   `;
- 
+
   window._pendingChannel = channelData;
 }
- 
+
 // ── Проверить и сохранить ─────────────────────────────────────────────────────
 async function verifyAndSave() {
   const user = tg?.initDataUnsafe?.user;
   const channelData = window._pendingChannel;
   if (!channelData || !user) { showToast('⚠️ Ошибка — попробуйте снова', 'error'); return; }
- 
+
   const btn = document.getElementById('verifyBtn');
   btn.textContent = '⏳ Проверяем…';
   btn.disabled = true;
- 
+
   const verify = await apiFetch('/verify-channel', {
     method: 'POST',
     body: JSON.stringify({ usname: channelData.usname, user_id: user.id }),
   });
- 
+
   if (!verify || verify.__error || !verify.verified) {
     btn.textContent = '🔍 Проверить';
     btn.disabled = false;
     showToast(verify?.error || verify?.message || '❌ Проверка не пройдена', 'error');
     return;
   }
- 
+
   channelData.name        = verify.name || channelData.usname;
   channelData.subscribers = verify.subscribers || 0;
   channelData.avatar_url  = verify.avatar_url || null;
- 
+
   const result = await apiFetch('/channels', {
     method: 'POST',
     body: JSON.stringify(channelData),
   });
- 
+
   if (!result) {
     btn.textContent = '🔍 Проверить';
     btn.disabled = false;
     return;
   }
- 
+
   if (result.__error) {
     btn.textContent = '🔍 Проверить';
     btn.disabled = false;
@@ -641,48 +631,45 @@ async function verifyAndSave() {
     }
     return;
   }
- 
+
   if (user?.id) {
     await apiFetch('/user_admin', {
       method: 'POST',
       body: JSON.stringify({ user_id: user.id, channel_id: result.id, premium: false }),
     });
   }
- 
+
   showToast(`✅ Канал "${channelData.name}" добавлен!`, 'success');
   renderManagePage();
   loadStats();
   window._pendingChannel = null;
 }
- 
+
 // ── Редактировать канал ───────────────────────────────────────────────────────
 async function editChannel(id) {
   const data = await apiFetch(`/channels/${id}`);
   if (!data) return;
- 
+
   editingChannelId = id;
- 
+
   if (document.getElementById('fUsname'))   document.getElementById('fUsname').value   = data.usname || '';
   if (document.getElementById('fCategory')) document.getElementById('fCategory').value = data.category || '';
   if (document.getElementById('fPrice24'))  document.getElementById('fPrice24').value  = data.pricead_24 || '';
   if (document.getElementById('fPriceAll')) document.getElementById('fPriceAll').value = data.pricead_all || '';
-  if (document.getElementById('fCurrency')) document.getElementById('fCurrency').value = data.currency || 'RUB';
- 
-  updatePriceLabels();
- 
+
   const title = document.getElementById('manageFormTitle');
   if (title) title.textContent = '✏️ Редактировать канал';
- 
+
   const submitBtn = document.getElementById('formSubmitBtn');
   if (submitBtn) submitBtn.textContent = '💾 Сохранить';
- 
+
   const cancelBtn = document.getElementById('formCancelBtn');
   if (cancelBtn) cancelBtn.style.display = 'block';
- 
+
   document.getElementById('manageFormCard').scrollIntoView({ behavior: 'smooth' });
   if (tg) tg.HapticFeedback?.impactOccurred('medium');
 }
- 
+
 // ── Удалить канал ─────────────────────────────────────────────────────────────
 async function deleteChannel(id, name) {
   if (!confirm(`Удалить канал "${name}"?`)) return;
@@ -697,41 +684,39 @@ async function deleteChannel(id, name) {
     loadStats();
   }
 }
- 
+
 function resetForm() {
   editingChannelId = null;
   if (document.getElementById('fUsname'))   document.getElementById('fUsname').value   = '';
   if (document.getElementById('fCategory')) document.getElementById('fCategory').value  = '';
   if (document.getElementById('fPrice24'))  document.getElementById('fPrice24').value   = '';
   if (document.getElementById('fPriceAll')) document.getElementById('fPriceAll').value  = '';
-  if (document.getElementById('fCurrency')) document.getElementById('fCurrency').value  = 'RUB';
- 
+
   const title     = document.getElementById('manageFormTitle');
   const submitBtn = document.getElementById('formSubmitBtn');
   const cancelBtn = document.getElementById('formCancelBtn');
   if (title)     title.textContent          = '➕ Добавить канал';
   if (submitBtn) submitBtn.textContent      = '➕ Добавить';
   if (cancelBtn) cancelBtn.style.display   = 'none';
-  updatePriceLabels();
 }
- 
+
 // ── Collab settings ───────────────────────────────────────────────────────────
 async function renderCollabSettings() {
   const user = tg?.initDataUnsafe?.user;
   const list = document.getElementById('collabSettingsList');
   if (!list) return;
- 
+
   if (!user?.id) {
     list.innerHTML = '<div class="empty-state" style="padding:20px"><div class="empty-title" style="font-size:13px">Войдите через бота</div></div>';
     return;
   }
- 
+
   const data = await apiFetch(`/user/${user.id}/channels`);
   if (!data || data.length === 0) {
     list.innerHTML = '<div class="empty-state" style="padding:20px"><div class="empty-title" style="font-size:13px">Нет каналов</div></div>';
     return;
   }
- 
+
   list.innerHTML = `
     <div class="settings-section">
       ${data.map(ch => `
@@ -758,20 +743,20 @@ async function renderCollabSettings() {
     </div>
   `;
 }
- 
+
 async function toggleCollab(channelId, el) {
   const user  = tg?.initDataUnsafe?.user;
   const isOn  = el.classList.contains('on');
   const newVal= !isOn;
- 
+
   el.classList.toggle('on', newVal);
   if (tg) tg.HapticFeedback?.impactOccurred('light');
- 
+
   const result = await apiFetch(`/channels/${channelId}/collab`, {
     method: 'PATCH',
     body: JSON.stringify({ collab: newVal, user_id: user?.id }),
   });
- 
+
   if (result) {
     showToast(newVal ? '✅ ВП включён' : '❌ ВП выключен', newVal ? 'success' : '');
     const ch = CHANNELS.find(c => c.id === channelId);
@@ -780,19 +765,19 @@ async function toggleCollab(channelId, el) {
     el.classList.toggle('on', isOn);
   }
 }
- 
+
 // ── SETTINGS — Валюта ─────────────────────────────────────────────────────────
- 
+
 // Временное состояние выбора в настройках
 let _tempPrimary = 'RUB';
 let _tempExtras  = [];
- 
+
 async function renderCurrencySettings() {
   const block = document.getElementById('currencySettingsBlock');
   if (!block) return;
- 
+
   const user = tg?.initDataUnsafe?.user;
- 
+
   // Загрузить с сервера
   if (user?.id) {
     const data = await apiFetch(`/users/${user.id}/currency`);
@@ -801,20 +786,36 @@ async function renderCurrencySettings() {
       userCurrencyExtra   = Array.isArray(data.currency_extra) ? data.currency_extra : [];
     }
   }
- 
+
   _tempPrimary = userCurrencyPrimary;
   _tempExtras  = [...userCurrencyExtra];
- 
+
   renderCurrencySettingsUI(block);
 }
- 
+
 function renderCurrencySettingsUI(block) {
   block.innerHTML = `
     <div class="currency-settings-card">
       <div class="currency-settings-section">
+        <div class="currency-settings-label">🌟 Основная валюта</div>
+        <div class="currency-options" id="primaryCurrOptions">
+          ${ALL_CURRENCIES.map(c => `
+            <div class="currency-option ${c === _tempPrimary ? 'selected' : ''}"
+                 data-action="primary" data-code="${c}">
+              <span class="curr-opt-symbol">${CURRENCIES[c].symbol}</span>
+              <div class="curr-opt-info">
+                <span class="curr-opt-name">${CURRENCIES[c].name}</span>
+                <span class="curr-opt-label">${CURRENCIES[c].label}</span>
+              </div>
+              <span class="curr-opt-check" style="${c === _tempPrimary ? '' : 'opacity:0'}">✓</span>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <div class="currency-settings-section" style="margin-top:16px">
         <div class="currency-settings-label">➕ Дополнительные валюты</div>
         <div class="currency-options" id="extraCurrOptions">
-          ${ALL_CURRENCIES.map(c => `
+          ${ALL_CURRENCIES.filter(c => c !== _tempPrimary).map(c => `
             <div class="currency-option extra ${_tempExtras.includes(c) ? 'selected' : ''}"
                  data-action="extra" data-code="${c}">
               <span class="curr-opt-symbol">${CURRENCIES[c].symbol}</span>
@@ -826,18 +827,18 @@ function renderCurrencySettingsUI(block) {
             </div>`).join('')}
         </div>
       </div>
- 
+
       <button class="btn btn-primary" id="saveCurrBtn"
               style="width:100%;justify-content:center;margin-top:16px;padding:13px">
         💾 Сохранить настройки валют
       </button>
     </div>
   `;
- 
+
   // ── Event delegation — надёжно работает в Telegram WebApp ────────────────
   block.addEventListener('click', _onCurrencyClick);
 }
- 
+
 // Единый обработчик для всего блока настроек валюты
 function _onCurrencyClick(e) {
   // Кнопка «Сохранить»
@@ -845,14 +846,14 @@ function _onCurrencyClick(e) {
     saveCurrencySettings();
     return;
   }
- 
+
   // Клик по опции (или любому её дочернему элементу)
   const option = e.target.closest('.currency-option[data-action]');
   if (!option) return;
- 
+
   const code   = option.dataset.code;
   const action = option.dataset.action;
- 
+
   if (action === 'primary') {
     _tempPrimary = code;
     _tempExtras  = _tempExtras.filter(c => c !== code);
@@ -863,9 +864,9 @@ function _onCurrencyClick(e) {
       _tempExtras.push(code);
     }
   }
- 
+
   if (tg) tg.HapticFeedback?.impactOccurred('light');
- 
+
   // Перерисовываем блок: сначала снимаем старый listener, потом рисуем заново
   const block = document.getElementById('currencySettingsBlock');
   if (block) {
@@ -873,14 +874,14 @@ function _onCurrencyClick(e) {
     renderCurrencySettingsUI(block);
   }
 }
- 
+
 async function saveCurrencySettings() {
   const user = tg?.initDataUnsafe?.user;
   if (!user?.id) {
     showToast('⚠️ Войдите через Telegram', 'error');
     return;
   }
- 
+
   const result = await apiFetch(`/users/${user.id}/currency`, {
     method: 'PUT',
     body: JSON.stringify({
@@ -888,18 +889,22 @@ async function saveCurrencySettings() {
       currency_extra:   _tempExtras,
     }),
   });
- 
+
   if (result) {
     userCurrencyPrimary = _tempPrimary;
     userCurrencyExtra   = _tempExtras;
     showToast('✅ Валюты сохранены!', 'success');
     if (tg) tg.HapticFeedback?.notificationOccurred('success');
+    // Перерисовываем карточки и форму управления с новой валютой
+    renderHome('all');
+    doSearch();
+    renderManagePage();
   }
 }
- 
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 const settings = JSON.parse(localStorage.getItem('adhub_settings') || '{"notifNew":true,"notifCollab":true,"notifPrice":false}');
- 
+
 async function initSettings() {
   const user = tg?.initDataUnsafe?.user;
   document.getElementById('profileName').textContent = user
@@ -908,16 +913,16 @@ async function initSettings() {
   document.getElementById('profileId').textContent = user
     ? `ID: ${user.id} · @${user.username || '—'}`
     : 'Открыто в браузере';
- 
+
   Object.keys(settings).forEach(k => {
     const el = document.getElementById(k);
     if (el) el.classList.toggle('on', !!settings[k]);
   });
- 
+
   renderCollabSettings();
   renderCurrencySettings();
 }
- 
+
 function toggleSetting(key) {
   settings[key] = !settings[key];
   const el = document.getElementById(key);
@@ -926,14 +931,14 @@ function toggleSetting(key) {
   showToast(settings[key] ? '✅ Включено' : '❌ Выключено');
   if (tg) tg.HapticFeedback?.impactOccurred('light');
 }
- 
+
 // ── Send to bot ───────────────────────────────────────────────────────────────
 function sendToBot(data) {
   if (tg) {
     try { tg.sendData(JSON.stringify(data)); } catch(e) {}
   }
 }
- 
+
 // ── Donate ────────────────────────────────────────────────────────────────────
 function selectAmount(val, el) {
   document.querySelectorAll('.amount-btn').forEach(b => b.classList.remove('selected'));
@@ -951,7 +956,7 @@ function selectAmount(val, el) {
     if (btn) btn.textContent = val + ' Stars';
   }
 }
- 
+
 function sendDonate() {
   let amount = selectedAmount;
   if (!amount) {
@@ -965,12 +970,12 @@ function sendDonate() {
   showToast(`💎 Спасибо за ${amount} Stars! ❤️`, 'success');
   if (tg) tg.HapticFeedback?.notificationOccurred('success');
 }
- 
+
 // ── Empty state ───────────────────────────────────────────────────────────────
 function emptyState(title, sub) {
   return `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">${title}</div><div class="empty-sub">${sub}</div></div>`;
 }
- 
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 registerUser();
 loadStats();
