@@ -449,11 +449,11 @@ async function renderManagePage() {
     </div>
     <div class="form-row">
       <div class="form-group" style="flex:1">
-        <label class="form-label" id="label24">Цена рекламы 24ч (₽)</label>
+        <label class="form-label" id="label24">Цена рекламы 24ч (${getCurrSymbol(userCurrencyPrimary)})</label>
         <input class="form-input" id="fPrice24" placeholder="500" type="number">
       </div>
       <div class="form-group" style="flex:1">
-        <label class="form-label" id="labelAll">Цена навсегда (₽)</label>
+        <label class="form-label" id="labelAll">Цена навсегда (${getCurrSymbol(userCurrencyPrimary)})</label>
         <input class="form-input" id="fPriceAll" placeholder="1000" type="number">
       </div>
     </div>
