@@ -482,7 +482,7 @@ async function renderManagePage() {
   }
 
   list.innerHTML = data.map(ch => {
-    const sym = getCurrSymbol(ch.currency || 'RUB');
+    const sym = getCurrSymbol(userCurrencyPrimary || ch.currency || 'RUB');
     return `
     <div class="manage-ch-item">
       <div class="manage-ch-info">
@@ -491,7 +491,7 @@ async function renderManagePage() {
         <div class="manage-ch-prices">
           ${ch.pricead_24  ? `<span class="tag">24ч: ${ch.pricead_24}${sym}</span>` : ''}
           ${ch.pricead_all ? `<span class="tag">∞: ${ch.pricead_all}${sym}</span>` : ''}
-          <span class="tag" style="background:rgba(108,99,255,.1);color:var(--accent2)">${sym} ${ch.currency || 'RUB'}</span>
+          <span class="tag" style="background:rgba(108,99,255,.1);color:var(--accent2)">${sym} ${userCurrencyPrimary || ch.currency || 'RUB'}</span>
         </div>
       </div>
       <div class="manage-ch-btns">
