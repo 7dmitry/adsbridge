@@ -111,7 +111,7 @@ function mapChannel(ch) {
     verified:           ch.verified ?? false,
     avatar:             ch.avatar_url || null,
     owner_id:           ch.owner_id,
-    currency:           ch.currency || 'RUB',
+    currency:           ch.owner_currency_primary || ch.currency || 'RUB',
     ownerCurrencyExtra: extras,
   };
 }
@@ -177,7 +177,7 @@ function getChannelPayCurrencies(ch) {
 
 // ── Channel card HTML ─────────────────────────────────────────────────────────
 function buildCard(ch) {
-  const sym      = getCurrSymbol(userCurrencyPrimary || ch.currency);
+  const sym    = getCurrSymbol(ch.currency);
   const price24  = ch.price24  ? `${ch.price24}${sym}/24ч` : '—';
   const priceAll = ch.priceAll ? `${ch.priceAll}${sym}/∞`  : '';
   return `
@@ -354,7 +354,7 @@ function openModal(id) {
   const ch = CHANNELS.find(c => c.id === id);
   if (!ch) return;
 
-  const sym        = getCurrSymbol(userCurrencyPrimary || ch.currency);
+  const sym        = getCurrSymbol(ch.currency);
   const price24str = ch.price24  ? `${ch.price24}${sym}`  : '—';
   const priceAllStr= ch.priceAll ? `${ch.priceAll}${sym}` : '—';
 
@@ -447,13 +447,23 @@ async function renderManagePage() {
         <option value="other">🌍 Другое</option>
       </select>
     </div>
+    <div class="form-group">
+      <label class="form-label">Валюта цен</label>
+      <select class="form-input" id="fCurrency" onchange="updatePriceLabels()">
+        <option value="RUB">₽ RUB — Российский рубль</option>
+        <option value="KZT">₸ KZT — Тенге</option>
+        <option value="TON">ꘜ TON — Toncoin</option>
+        <option value="USD">$ USD — Доллар</option>
+        <option value="STARS">⭐️ Stars — Telegram Stars</option>
+      </select>
+    </div>
     <div class="form-row">
       <div class="form-group" style="flex:1">
-        <label class="form-label" id="label24">Цена рекламы 24ч (${getCurrSymbol(userCurrencyPrimary)})</label>
+        <label class="form-label" id="label24">Цена рекламы 24ч (₽)</label>
         <input class="form-input" id="fPrice24" placeholder="500" type="number">
       </div>
       <div class="form-group" style="flex:1">
-        <label class="form-label" id="labelAll">Цена навсегда (${getCurrSymbol(userCurrencyPrimary)})</label>
+        <label class="form-label" id="labelAll">Цена навсегда (₽)</label>
         <input class="form-input" id="fPriceAll" placeholder="1000" type="number">
       </div>
     </div>
@@ -520,7 +530,7 @@ async function submitChannel() {
   const category = document.getElementById('fCategory')?.value;
   const price24  = document.getElementById('fPrice24')?.value.trim();
   const priceAll = document.getElementById('fPriceAll')?.value.trim();
-  const currency = userCurrencyPrimary || 'RUB';
+  const currency = document.getElementById('fCurrency')?.value || 'RUB';
 
   if (!usname || !category) {
     showToast('⚠️ Заполните обязательные поля', 'error');
@@ -656,6 +666,10 @@ async function editChannel(id) {
   if (document.getElementById('fCategory')) document.getElementById('fCategory').value = data.category || '';
   if (document.getElementById('fPrice24'))  document.getElementById('fPrice24').value  = data.pricead_24 || '';
   if (document.getElementById('fPriceAll')) document.getElementById('fPriceAll').value = data.pricead_all || '';
+  if (document.getElementById('fCurrency')) document.getElementById('fCurrency').value = data.currency || 'RUB';
+
+  updatePriceLabels();
+
   const title = document.getElementById('manageFormTitle');
   if (title) title.textContent = '✏️ Редактировать канал';
 
@@ -690,12 +704,15 @@ function resetForm() {
   if (document.getElementById('fCategory')) document.getElementById('fCategory').value  = '';
   if (document.getElementById('fPrice24'))  document.getElementById('fPrice24').value   = '';
   if (document.getElementById('fPriceAll')) document.getElementById('fPriceAll').value  = '';
+  if (document.getElementById('fCurrency')) document.getElementById('fCurrency').value  = 'RUB';
+
   const title     = document.getElementById('manageFormTitle');
   const submitBtn = document.getElementById('formSubmitBtn');
   const cancelBtn = document.getElementById('formCancelBtn');
   if (title)     title.textContent          = '➕ Добавить канал';
   if (submitBtn) submitBtn.textContent      = '➕ Добавить';
   if (cancelBtn) cancelBtn.style.display   = 'none';
+  updatePriceLabels();
 }
 
 // ── Collab settings ───────────────────────────────────────────────────────────
@@ -893,8 +910,6 @@ async function saveCurrencySettings() {
     userCurrencyExtra   = _tempExtras;
     showToast('✅ Валюты сохранены!', 'success');
     if (tg) tg.HapticFeedback?.notificationOccurred('success');
-    renderHome('all');
-    doSearch();
   }
 }
 
@@ -973,19 +988,8 @@ function emptyState(title, sub) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-async function init() {
-  registerUser();
-  loadStats();
-  const user = tg?.initDataUnsafe?.user;
-  if (user?.id) {
-    const data = await apiFetch(`/users/${user.id}/currency`);
-    if (data) {
-      userCurrencyPrimary = data.currency_primary || 'RUB';
-      userCurrencyExtra   = Array.isArray(data.currency_extra) ? data.currency_extra : [];
-    }
-  }
-  renderHome('all');
-  doSearch();
-  initSettings();
-}
-init();
+registerUser();
+loadStats();
+renderHome('all');
+doSearch();
+initSettings();
