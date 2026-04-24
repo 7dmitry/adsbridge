@@ -83,7 +83,16 @@ const VALID_CATEGORIES = [
   'art','news','entertainment','edu','other'
 ];
 
-function validateChannelData({ usname, category, pricead_24, pricead_all }) {
+// Проверяет значение цены: допустимо '-', null, '' или число 0–100000
+function validatePrice(val, label) {
+  if (!val || val === '' || val === null) return null; // пусто — ок
+  if (val === '-') return null;                        // прочерк — ок
+  const n = parseFloat(val);
+  if (isNaN(n) || n < 0 || n > 100000) return `Недопустимая цена ${label}`;
+  return null;
+}
+
+function validateChannelData({ usname, category, pricead_24, pricead_48, pricead_72, pricead_all }) {
   if (!usname || typeof usname !== 'string' || usname.length > 50) {
     return 'Некорректный username';
   }
@@ -93,13 +102,19 @@ function validateChannelData({ usname, category, pricead_24, pricead_all }) {
   if (!category || !VALID_CATEGORIES.includes(category)) {
     return 'Недопустимая категория';
   }
-  if (pricead_24 && (isNaN(pricead_24) || pricead_24 < 0 || pricead_24 > 100000)) {
-    return 'Недопустимая цена 24ч';
-  }
-  if (pricead_all && (isNaN(pricead_all) || pricead_all < 0 || pricead_all > 100000)) {
-    return 'Недопустимая цена навсегда';
-  }
-  return null;
+  return validatePrice(pricead_24, '24ч')
+      || validatePrice(pricead_48, '48ч')
+      || validatePrice(pricead_72, '72ч')
+      || validatePrice(pricead_all, 'навсегда')
+      || null;
+}
+
+// Нормализует значение цены: '-' остаётся '-', число — строкой, пусто — null
+function normalizePrice(val) {
+  if (!val || val === '') return null;
+  if (val === '-') return '-';
+  const n = parseFloat(val);
+  return isNaN(n) ? null : String(n);
 }
 
 // ===== STATS =====
@@ -265,8 +280,13 @@ app.get('/api/channels/:id', async (req, res) => {
 
 app.post('/api/channels', requireTgAuth, async (req, res) => {
   try {
-    const { name, usname, category, subscribers, pricead_24, pricead_all, owner_id, avatar_url, currency } = req.body;
+    const { name, usname, category, subscribers, pricead_24, pricead_48, pricead_72, pricead_all, owner_id, avatar_url, currency } = req.body;
     const channelCurrency = VALID_CURRENCIES.includes(currency) ? currency : 'RUB';
+
+    const p24  = normalizePrice(pricead_24);
+    const p48  = normalizePrice(pricead_48);
+    const p72  = normalizePrice(pricead_72);
+    const pAll = normalizePrice(pricead_all);
 
     const existing = await pool.query(
       'SELECT id, owner_id FROM channels WHERE usname = $1',
@@ -280,17 +300,17 @@ app.post('/api/channels', requireTgAuth, async (req, res) => {
       }
       const result = await pool.query(
         `UPDATE channels SET name=$1, category=$2, subscribers=$3,
-         pricead_24=$4, pricead_all=$5, avatar_url=$6, currency=$7
-         WHERE usname=$8 RETURNING *`,
-        [name, category, subscribers || 0, pricead_24 || null, pricead_all || null, avatar_url || null, channelCurrency, usname]
+         pricead_24=$4, pricead_48=$5, pricead_72=$6, pricead_all=$7, avatar_url=$8, currency=$9
+         WHERE usname=$10 RETURNING *`,
+        [name, category, subscribers || 0, p24, p48, p72, pAll, avatar_url || null, channelCurrency, usname]
       );
       return res.json(result.rows[0]);
     }
 
     const result = await pool.query(
-      `INSERT INTO channels (name, usname, category, subscribers, pricead_24, pricead_all, owner_id, avatar_url, currency)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [name, usname, category, subscribers || 0, pricead_24 || null, pricead_all || null, owner_id, avatar_url || null, channelCurrency]
+      `INSERT INTO channels (name, usname, category, subscribers, pricead_24, pricead_48, pricead_72, pricead_all, owner_id, avatar_url, currency)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [name, usname, category, subscribers || 0, p24, p48, p72, pAll, owner_id, avatar_url || null, channelCurrency]
     );
     res.status(201).json(result.rows[0]);
 
@@ -302,7 +322,7 @@ app.post('/api/channels', requireTgAuth, async (req, res) => {
 app.put('/api/channels/:id', requireTgAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, usname, category, subscribers, pricead_24, pricead_all, user_id, currency } = req.body;
+    const { name, usname, category, subscribers, pricead_24, pricead_48, pricead_72, pricead_all, user_id, currency } = req.body;
     const channelCurrency = VALID_CURRENCIES.includes(currency) ? currency : 'RUB';
 
     if (!user_id) {
@@ -322,11 +342,16 @@ app.put('/api/channels/:id', requireTgAuth, async (req, res) => {
       return res.status(403).json({ error: 'Нет доступа' });
     }
 
+    const p24  = normalizePrice(pricead_24);
+    const p48  = normalizePrice(pricead_48);
+    const p72  = normalizePrice(pricead_72);
+    const pAll = normalizePrice(pricead_all);
+
     const result = await pool.query(
       `UPDATE channels SET name=$1, usname=$2, category=$3,
-       pricead_24=$4, pricead_all=$5, currency=$6
-       WHERE id=$7 RETURNING *`,
-      [name, usname, category, pricead_24 || null, pricead_all || null, channelCurrency, id]
+       pricead_24=$4, pricead_48=$5, pricead_72=$6, pricead_all=$7, currency=$8
+       WHERE id=$9 RETURNING *`,
+      [name, usname, category, p24, p48, p72, pAll, channelCurrency, id]
     );
 
     res.json(result.rows[0]);
@@ -590,6 +615,60 @@ app.patch('/api/channels/:id/collab', requireTgAuth, async (req, res) => {
     );
 
     res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== CHANNEL GRID (Сетки каналов) =====
+
+// Получить сетку пользователя
+app.get('/api/users/:id/grid', requireTgAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'SELECT channel_grid FROM users WHERE id = $1',
+      [id]
+    );
+    if (result.rows.length === 0) return res.json([]);
+    let grid = result.rows[0].channel_grid;
+    if (typeof grid === 'string') { try { grid = JSON.parse(grid); } catch { grid = []; } }
+    res.json(Array.isArray(grid) ? grid : []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Сохранить сетку пользователя
+app.put('/api/users/:id/grid', requireTgAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { grid } = req.body;
+
+    if (!Array.isArray(grid)) {
+      return res.status(400).json({ error: 'grid должен быть массивом' });
+    }
+
+    // Валидация структуры сетки
+    for (const item of grid) {
+      if (!item.name || typeof item.name !== 'string') {
+        return res.status(400).json({ error: 'Каждая сетка должна иметь название' });
+      }
+      if (!Array.isArray(item.channels)) {
+        return res.status(400).json({ error: 'channels должен быть массивом' });
+      }
+    }
+
+    const result = await pool.query(
+      `UPDATE users SET channel_grid = $1::jsonb WHERE id = $2 RETURNING channel_grid`,
+      [JSON.stringify(grid), id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Пользователь не найден' });
+    }
+
+    res.json({ ok: true, grid });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

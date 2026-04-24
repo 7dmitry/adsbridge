@@ -104,7 +104,9 @@ function mapChannel(ch) {
     cat:                ch.category,
     subs:               ch.subscribers || 0,
     desc:               ch.desc || '',
-    price24:            ch.pricead_24 || null,
+    price24:            ch.pricead_24  || null,
+    price48:            ch.pricead_48  || null,
+    price72:            ch.pricead_72  || null,
     priceAll:           ch.pricead_all || null,
     price:              parseFloat(ch.pricead_24) || 0,
     collab:             ch.collab ?? false,
@@ -175,11 +177,29 @@ function getChannelPayCurrencies(ch) {
   return all.filter(c => CURRENCIES[c]); // только известные валюты
 }
 
+// Форматирует цену: '-' → '—', число → число, null → '—'
+function fmtPrice(val, sym, label) {
+  if (!val || val === '') return null;
+  if (val === '-') return `—/${label}`;
+  return `${val}${sym}/${label}`;
+}
+
 // ── Channel card HTML ─────────────────────────────────────────────────────────
 function buildCard(ch) {
-  const sym    = getCurrSymbol(ch.currency);
-  const price24  = ch.price24  ? `${ch.price24}${sym}/24ч` : '—';
-  const priceAll = ch.priceAll ? `${ch.priceAll}${sym}/∞`  : '';
+  const sym     = getCurrSymbol(ch.currency);
+  const p24  = ch.price24  ? (ch.price24  === '-' ? '—' : `${ch.price24}${sym}`)  : null;
+  const p48  = ch.price48  ? (ch.price48  === '-' ? '—' : `${ch.price48}${sym}`)  : null;
+  const p72  = ch.price72  ? (ch.price72  === '-' ? '—' : `${ch.price72}${sym}`)  : null;
+  const pAll = ch.priceAll ? (ch.priceAll === '-' ? '—' : `${ch.priceAll}${sym}`) : null;
+
+  // Строим строку цен только из заполненных значений
+  const priceItems = [];
+  if (p24  !== null) priceItems.push(`24ч: ${p24}`);
+  if (p48  !== null) priceItems.push(`48ч: ${p48}`);
+  if (p72  !== null) priceItems.push(`72ч: ${p72}`);
+  if (pAll !== null) priceItems.push(`∞: ${pAll}`);
+  const priceStr = priceItems.length ? priceItems.join(' · ') : '—';
+
   return `
   <div class="ch-card" onclick="openModal(${ch.id})">
     <div class="ch-top">
@@ -209,7 +229,7 @@ function buildCard(ch) {
       <div class="metric"><span>📋</span><strong>Реклама</strong></div>
     </div>
     <div class="ch-bottom">
-      <div class="price-badge">💰 ${price24}${priceAll ? ' · ' + priceAll : ''}</div>
+      <div class="price-badge">💰 ${priceStr}</div>
       <div class="ch-action-btns">
         <button class="ch-btn ch-btn-primary" onclick="event.stopPropagation();contactChannel(${ch.id})">📩 Связаться</button>
       </div>
@@ -354,9 +374,12 @@ function openModal(id) {
   const ch = CHANNELS.find(c => c.id === id);
   if (!ch) return;
 
-  const sym        = getCurrSymbol(ch.currency);
-  const price24str = ch.price24  ? `${ch.price24}${sym}`  : '—';
-  const priceAllStr= ch.priceAll ? `${ch.priceAll}${sym}` : '—';
+  const sym = getCurrSymbol(ch.currency);
+  const fP  = (val, label) => val ? (val === '-' ? `— (${label})` : `${val}${sym}`) : '—';
+  const price24str  = fP(ch.price24,  '24ч');
+  const price48str  = fP(ch.price48,  '48ч');
+  const price72str  = fP(ch.price72,  '72ч');
+  const priceAllStr = fP(ch.priceAll, '∞');
 
   // Принимаемые валюты
   const payCurrs = getChannelPayCurrencies(ch);
@@ -403,6 +426,14 @@ function openModal(id) {
         <div class="modal-stat-key">Реклама 24ч</div>
       </div>
       <div class="modal-stat">
+        <div class="modal-stat-val">${price48str}</div>
+        <div class="modal-stat-key">Реклама 48ч</div>
+      </div>
+      <div class="modal-stat">
+        <div class="modal-stat-val">${price72str}</div>
+        <div class="modal-stat-key">Реклама 72ч</div>
+      </div>
+      <div class="modal-stat">
         <div class="modal-stat-val">${priceAllStr}</div>
         <div class="modal-stat-key">Реклама навсегда</div>
       </div>
@@ -426,6 +457,7 @@ function closeModal(e) {
 
 // ── MANAGE PAGE ───────────────────────────────────────────────────────────────
 async function renderManagePage() {
+  const sym = getCurrSymbol(userCurrencyPrimary);
   document.getElementById('manageFormCard').innerHTML = `
     <div class="manage-form-title" id="manageFormTitle">➕ Добавить канал</div>
     <div class="form-group">
@@ -447,14 +479,27 @@ async function renderManagePage() {
         <option value="other">🌍 Другое</option>
       </select>
     </div>
+    <div class="form-hint" style="font-size:11px;color:var(--text3);margin:-4px 0 8px">
+      💡 Введите цену или <strong>-</strong> если размещение недоступно
+    </div>
     <div class="form-row">
       <div class="form-group" style="flex:1">
-        <label class="form-label" id="label24">Цена рекламы 24ч (${getCurrSymbol(userCurrencyPrimary)})</label>
-        <input class="form-input" id="fPrice24" placeholder="500" type="number">
+        <label class="form-label" id="label24">24ч (${sym})</label>
+        <input class="form-input" id="fPrice24" placeholder="500 или -">
       </div>
       <div class="form-group" style="flex:1">
-        <label class="form-label" id="labelAll">Цена навсегда (${getCurrSymbol(userCurrencyPrimary)})</label>
-        <input class="form-input" id="fPriceAll" placeholder="1000" type="number">
+        <label class="form-label" id="label48">48ч (${sym})</label>
+        <input class="form-input" id="fPrice48" placeholder="900 или -">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1">
+        <label class="form-label" id="label72">72ч (${sym})</label>
+        <input class="form-input" id="fPrice72" placeholder="1200 или -">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label" id="labelAll">Навсегда (${sym})</label>
+        <input class="form-input" id="fPriceAll" placeholder="2000 или -">
       </div>
     </div>
     <div class="form-actions">
@@ -483,14 +528,19 @@ async function renderManagePage() {
 
   list.innerHTML = data.map(ch => {
     const sym = getCurrSymbol(userCurrencyPrimary || ch.currency || 'RUB');
+    const prices = [
+      ch.pricead_24  ? `24ч: ${ch.pricead_24 === '-' ? '—' : ch.pricead_24 + sym}`  : null,
+      ch.pricead_48  ? `48ч: ${ch.pricead_48 === '-' ? '—' : ch.pricead_48 + sym}`  : null,
+      ch.pricead_72  ? `72ч: ${ch.pricead_72 === '-' ? '—' : ch.pricead_72 + sym}`  : null,
+      ch.pricead_all ? `∞: ${ch.pricead_all === '-' ? '—' : ch.pricead_all + sym}` : null,
+    ].filter(Boolean);
     return `
     <div class="manage-ch-item">
       <div class="manage-ch-info">
         <div class="manage-ch-name">${ch.name}</div>
         <div class="manage-ch-meta">@${ch.usname} · ${CAT_NAMES[ch.category] || ch.category} · ${fmt(ch.subscribers || 0)} подп.</div>
         <div class="manage-ch-prices">
-          ${ch.pricead_24  ? `<span class="tag">24ч: ${ch.pricead_24}${sym}</span>` : ''}
-          ${ch.pricead_all ? `<span class="tag">∞: ${ch.pricead_all}${sym}</span>` : ''}
+          ${prices.map(p => `<span class="tag">${p}</span>`).join('')}
           <span class="tag" style="background:rgba(108,99,255,.1);color:var(--accent2)">${sym} ${userCurrencyPrimary || ch.currency || 'RUB'}</span>
         </div>
       </div>
@@ -519,8 +569,10 @@ async function submitChannel() {
   const usname   = document.getElementById('fUsname')?.value.trim().replace('@','');
   const category = document.getElementById('fCategory')?.value;
   const price24  = document.getElementById('fPrice24')?.value.trim();
+  const price48  = document.getElementById('fPrice48')?.value.trim();
+  const price72  = document.getElementById('fPrice72')?.value.trim();
   const priceAll = document.getElementById('fPriceAll')?.value.trim();
-  const currency = document.getElementById('fCurrency')?.value || 'RUB';
+  const currency = document.getElementById('fCurrency')?.value || userCurrencyPrimary || 'RUB';
 
   if (!usname || !category) {
     showToast('⚠️ Заполните обязательные поля', 'error');
@@ -531,7 +583,8 @@ async function submitChannel() {
     const data = await apiFetch(`/channels/${editingChannelId}`);
     const body = {
       name: data.name, usname, category,
-      pricead_24: price24 || null, pricead_all: priceAll || null,
+      pricead_24: price24 || null, pricead_48: price48 || null,
+      pricead_72: price72 || null, pricead_all: priceAll || null,
       owner_id: user?.id || 0,
       user_id:  user?.id,
       currency,
@@ -547,6 +600,8 @@ async function submitChannel() {
     usname, category, currency,
     name: '',
     pricead_24:  price24 || null,
+    pricead_48:  price48 || null,
+    pricead_72:  price72 || null,
     pricead_all: priceAll || null,
     owner_id: user?.id || 0
   });
@@ -655,10 +710,10 @@ async function editChannel(id) {
   if (document.getElementById('fUsname'))   document.getElementById('fUsname').value   = data.usname || '';
   if (document.getElementById('fCategory')) document.getElementById('fCategory').value = data.category || '';
   if (document.getElementById('fPrice24'))  document.getElementById('fPrice24').value  = data.pricead_24 || '';
+  if (document.getElementById('fPrice48'))  document.getElementById('fPrice48').value  = data.pricead_48 || '';
+  if (document.getElementById('fPrice72'))  document.getElementById('fPrice72').value  = data.pricead_72 || '';
   if (document.getElementById('fPriceAll')) document.getElementById('fPriceAll').value = data.pricead_all || '';
-  if (document.getElementById('fCurrency')) document.getElementById('fCurrency').value = data.currency || 'RUB';
-
-  updatePriceLabels();
+  if (document.getElementById('fCurrency')) document.getElementById('fCurrency').value = data.currency || userCurrencyPrimary || 'RUB';
 
   const title = document.getElementById('manageFormTitle');
   if (title) title.textContent = '✏️ Редактировать канал';
@@ -693,8 +748,10 @@ function resetForm() {
   if (document.getElementById('fUsname'))   document.getElementById('fUsname').value   = '';
   if (document.getElementById('fCategory')) document.getElementById('fCategory').value  = '';
   if (document.getElementById('fPrice24'))  document.getElementById('fPrice24').value   = '';
+  if (document.getElementById('fPrice48'))  document.getElementById('fPrice48').value   = '';
+  if (document.getElementById('fPrice72'))  document.getElementById('fPrice72').value   = '';
   if (document.getElementById('fPriceAll')) document.getElementById('fPriceAll').value  = '';
-  if (document.getElementById('fCurrency')) document.getElementById('fCurrency').value  = 'RUB';
+  if (document.getElementById('fCurrency')) document.getElementById('fCurrency').value  = userCurrencyPrimary || 'RUB';
 
   const title     = document.getElementById('manageFormTitle');
   const submitBtn = document.getElementById('formSubmitBtn');
@@ -702,7 +759,6 @@ function resetForm() {
   if (title)     title.textContent          = '➕ Добавить канал';
   if (submitBtn) submitBtn.textContent      = '➕ Добавить';
   if (cancelBtn) cancelBtn.style.display   = 'none';
-  updatePriceLabels();
 }
 
 // ── Collab settings ───────────────────────────────────────────────────────────
@@ -922,6 +978,7 @@ async function initSettings() {
 
   renderCollabSettings();
   renderCurrencySettings();
+  renderGridSettings();
 }
 
 function toggleSetting(key) {
@@ -975,6 +1032,266 @@ function sendDonate() {
 // ── Empty state ───────────────────────────────────────────────────────────────
 function emptyState(title, sub) {
   return `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">${title}</div><div class="empty-sub">${sub}</div></div>`;
+}
+
+// ── CHANNEL GRID (Сетки каналов) ─────────────────────────────────────────────
+
+let _userGrid = [];          // массив сеток из БД
+let _editingGridIndex = null; // null = новая, число = редактируем существующую
+let _gridDraft = null;        // { name, price_24, price_48, price_72, price_all, channels: [] }
+
+// Загружает сетки с сервера и рендерит раздел в настройках
+async function renderGridSettings() {
+  const container = document.getElementById('gridSettingsBlock');
+  if (!container) return;
+
+  const user = tg?.initDataUnsafe?.user;
+  if (!user?.id) {
+    container.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px 0">Войдите через бота</div>';
+    return;
+  }
+
+  const data = await apiFetch(`/users/${user.id}/grid`);
+  _userGrid = Array.isArray(data) ? data : [];
+
+  renderGridList(container);
+}
+
+function renderGridList(container) {
+  const hasGrid = _userGrid.length > 0;
+
+  container.innerHTML = `
+    <div class="settings-section" style="margin-bottom:12px">
+      ${_userGrid.map((g, i) => `
+        <div class="setting-item" style="flex-direction:column;align-items:flex-start;gap:6px;padding:12px">
+          <div style="display:flex;width:100%;align-items:center;justify-content:space-between">
+            <div>
+              <div class="set-title">📊 ${g.name}</div>
+              <div class="set-sub">${g.channels?.length || 0} кан${gridSuffix(g.channels?.length)}</div>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="ch-btn ch-btn-ghost" onclick="openGridEditor(${i})">✏️</button>
+              <button class="ch-btn ch-btn-danger" onclick="deleteGrid(${i})">🗑</button>
+            </div>
+          </div>
+          ${renderGridChannelPills(g)}
+        </div>`).join('')}
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center"
+            onclick="openGridEditor(null)">
+      ➕ Создать сетку каналов
+    </button>
+  `;
+}
+
+function gridSuffix(n = 0) {
+  if (n === 1) return 'ал';
+  if (n >= 2 && n <= 4) return 'ала';
+  return 'алов';
+}
+
+function renderGridChannelPills(g) {
+  if (!g.channels?.length) return '<div style="font-size:12px;color:var(--text3)">Нет каналов</div>';
+  return `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:2px">
+    ${g.channels.map(c => `<span class="tag">${c.name || '@' + c.usname}</span>`).join('')}
+  </div>`;
+}
+
+// Открывает редактор сетки (null = новая, index = редактируем)
+async function openGridEditor(index) {
+  _editingGridIndex = index;
+
+  if (index !== null && _userGrid[index]) {
+    _gridDraft = JSON.parse(JSON.stringify(_userGrid[index])); // deep copy
+  } else {
+    _gridDraft = { name: '', price_24: '', price_48: '', price_72: '', price_all: '', channels: [] };
+  }
+
+  // Загружаем каналы пользователя для добавления в сетку
+  const user = tg?.initDataUnsafe?.user;
+  let myChannels = [];
+  if (user?.id) {
+    const data = await apiFetch(`/user/${user.id}/channels`);
+    myChannels = Array.isArray(data) ? data : [];
+  }
+
+  const container = document.getElementById('gridSettingsBlock');
+  if (!container) return;
+
+  const sym = getCurrSymbol(userCurrencyPrimary);
+  const isEdit = index !== null;
+
+  container.innerHTML = `
+    <div class="manage-form-card" style="margin-bottom:16px">
+      <div class="manage-form-title">${isEdit ? '✏️ Редактировать сетку' : '➕ Новая сетка каналов'}</div>
+
+      <div class="form-group">
+        <label class="form-label">Название сетки *</label>
+        <input class="form-input" id="gName" placeholder="Моя топ-сетка" value="${_gridDraft.name}">
+      </div>
+
+      <div class="form-hint" style="font-size:11px;color:var(--text3);margin:-4px 0 8px">
+        💡 Укажите цены для всей сетки или оставьте пустыми. Введите <strong>-</strong> если недоступно.
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" style="flex:1">
+          <label class="form-label">24ч (${sym})</label>
+          <input class="form-input" id="gPrice24" placeholder="500 или -" value="${_gridDraft.price_24 || ''}">
+        </div>
+        <div class="form-group" style="flex:1">
+          <label class="form-label">48ч (${sym})</label>
+          <input class="form-input" id="gPrice48" placeholder="900 или -" value="${_gridDraft.price_48 || ''}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="flex:1">
+          <label class="form-label">72ч (${sym})</label>
+          <input class="form-input" id="gPrice72" placeholder="1200 или -" value="${_gridDraft.price_72 || ''}">
+        </div>
+        <div class="form-group" style="flex:1">
+          <label class="form-label">Навсегда (${sym})</label>
+          <input class="form-input" id="gPriceAll" placeholder="2000 или -" value="${_gridDraft.price_all || ''}">
+        </div>
+      </div>
+
+      <div class="form-label" style="margin-bottom:8px">Каналы в сетке</div>
+      <div id="gridChannelList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
+        ${renderGridEditorChannels(_gridDraft.channels)}
+      </div>
+
+      ${myChannels.length > 0 ? `
+        <div class="form-label" style="margin:10px 0 6px;color:var(--text3)">➕ Добавить канал</div>
+        <div style="display:flex;flex-direction:column;gap:5px" id="gridAddList">
+          ${myChannels.map(ch => {
+            const alreadyIn = _gridDraft.channels.some(c => c.id === ch.id);
+            return `<div class="manage-ch-item" style="cursor:pointer;${alreadyIn ? 'opacity:.4;pointer-events:none' : ''}"
+                         onclick="gridAddChannel(${ch.id}, '${ch.name.replace(/'/g,"\\'")}', '@${ch.usname}')">
+              <div class="manage-ch-info">
+                <div class="manage-ch-name">${ch.name}</div>
+                <div class="manage-ch-meta">@${ch.usname} · ${fmt(ch.subscribers || 0)} подп.</div>
+              </div>
+              <div>${alreadyIn ? '✅' : '＋'}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      ` : '<div style="color:var(--text3);font-size:13px">Нет доступных каналов. Сначала добавьте каналы в разделе «Каналы».</div>'}
+
+      <div class="form-actions" style="margin-top:16px">
+        <button class="btn btn-secondary" onclick="renderGridSettings()">Отмена</button>
+        <button class="btn btn-primary" style="flex:1;justify-content:center" onclick="saveGrid()">
+          💾 Сохранить сетку
+        </button>
+      </div>
+    </div>
+  `;
+
+  if (tg) tg.HapticFeedback?.impactOccurred('light');
+}
+
+function renderGridEditorChannels(channels) {
+  if (!channels?.length) return '<div style="font-size:12px;color:var(--text3);padding:4px 0">Пока нет каналов</div>';
+  return channels.map((c, i) => `
+    <div class="manage-ch-item" style="padding:8px 10px">
+      <div class="manage-ch-info">
+        <div class="manage-ch-name">${c.name}</div>
+        <div class="manage-ch-meta">${c.usname}</div>
+      </div>
+      <button class="ch-btn ch-btn-danger" onclick="gridRemoveChannel(${i})">✕</button>
+    </div>`).join('');
+}
+
+function gridAddChannel(id, name, usname) {
+  if (_gridDraft.channels.some(c => c.id === id)) return;
+  _gridDraft.channels.push({ id, name, usname });
+  // Перерисовываем только список каналов в форме без полного перезапуска редактора
+  const el = document.getElementById('gridChannelList');
+  if (el) el.innerHTML = renderGridEditorChannels(_gridDraft.channels);
+  // Скрываем кнопку добавления
+  document.querySelectorAll('#gridAddList .manage-ch-item').forEach(item => {
+    if (item.getAttribute('onclick')?.includes(`gridAddChannel(${id},`)) {
+      item.style.opacity = '.4';
+      item.style.pointerEvents = 'none';
+      item.querySelector('div:last-child').textContent = '✅';
+    }
+  });
+  if (tg) tg.HapticFeedback?.impactOccurred('light');
+}
+
+function gridRemoveChannel(index) {
+  const removed = _gridDraft.channels.splice(index, 1)[0];
+  const el = document.getElementById('gridChannelList');
+  if (el) el.innerHTML = renderGridEditorChannels(_gridDraft.channels);
+  // Разблокируем кнопку добавления
+  if (removed) {
+    document.querySelectorAll('#gridAddList .manage-ch-item').forEach(item => {
+      if (item.getAttribute('onclick')?.includes(`gridAddChannel(${removed.id},`)) {
+        item.style.opacity = '1';
+        item.style.pointerEvents = 'auto';
+        item.querySelector('div:last-child').textContent = '＋';
+      }
+    });
+  }
+  if (tg) tg.HapticFeedback?.impactOccurred('light');
+}
+
+async function saveGrid() {
+  const user = tg?.initDataUnsafe?.user;
+  if (!user?.id) { showToast('⚠️ Войдите через Telegram', 'error'); return; }
+
+  const name    = document.getElementById('gName')?.value.trim();
+  const price24 = document.getElementById('gPrice24')?.value.trim();
+  const price48 = document.getElementById('gPrice48')?.value.trim();
+  const price72 = document.getElementById('gPrice72')?.value.trim();
+  const priceAll= document.getElementById('gPriceAll')?.value.trim();
+
+  if (!name) { showToast('⚠️ Введите название сетки', 'error'); return; }
+
+  _gridDraft.name      = name;
+  _gridDraft.price_24  = price24  || null;
+  _gridDraft.price_48  = price48  || null;
+  _gridDraft.price_72  = price72  || null;
+  _gridDraft.price_all = priceAll || null;
+
+  const newGrid = [..._userGrid];
+  if (_editingGridIndex !== null) {
+    newGrid[_editingGridIndex] = _gridDraft;
+  } else {
+    newGrid.push(_gridDraft);
+  }
+
+  const result = await apiFetch(`/users/${user.id}/grid`, {
+    method: 'PUT',
+    body: JSON.stringify({ grid: newGrid }),
+  });
+
+  if (result?.ok) {
+    _userGrid = newGrid;
+    showToast(_editingGridIndex !== null ? '✅ Сетка обновлена!' : '✅ Сетка создана!', 'success');
+    if (tg) tg.HapticFeedback?.notificationOccurred('success');
+    renderGridSettings();
+  }
+}
+
+async function deleteGrid(index) {
+  const g = _userGrid[index];
+  if (!g) return;
+  if (!confirm(`Удалить сетку «${g.name}»?`)) return;
+
+  const user = tg?.initDataUnsafe?.user;
+  const newGrid = _userGrid.filter((_, i) => i !== index);
+
+  const result = await apiFetch(`/users/${user.id}/grid`, {
+    method: 'PUT',
+    body: JSON.stringify({ grid: newGrid }),
+  });
+
+  if (result?.ok) {
+    _userGrid = newGrid;
+    showToast('🗑 Сетка удалена', 'success');
+    const container = document.getElementById('gridSettingsBlock');
+    if (container) renderGridList(container);
+  }
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
