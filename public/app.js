@@ -302,84 +302,123 @@ async function doSearch() {
   }
 }
 
-let _allUserNetworks = [];
+let _allUserNetworks  = [];  // свои сетки
+let _allPublicNetworks = []; // все публичные
+let _netTab = 'my';          // 'my' | 'all'
+let _netCatFilter = 'all';
 
-// Вызывается при открытии страницы поиска — загружает и рендерит все сетки
+// Вызывается при открытии страницы поиска
 async function loadAndRenderNetworks() {
   const user = tg?.initDataUnsafe?.user;
   const nr = document.getElementById('networkSearchResults');
   if (!nr) return;
 
-  if (!user?.id) {
-    nr.innerHTML = '';
-    return;
+  // Рендерим каркас с вкладками сразу
+  _renderNetworkSearchShell();
+
+  // Загружаем свои сетки
+  if (user?.id) {
+    const myNets = await apiFetch(`/user/${user.id}/networks`);
+    _allUserNetworks = (myNets && !myNets.__error) ? myNets : [];
   }
 
-  nr.innerHTML = '<div class="net-empty">Загружаем сетки…</div>';
+  // Загружаем публичные
+  const pubNets = await apiFetch('/networks/all');
+  _allPublicNetworks = (pubNets && !pubNets.__error) ? pubNets : [];
 
-  const nets = await apiFetch(`/user/${user.id}/networks`);
-  _allUserNetworks = (nets && !nets.__error) ? nets : [];
-
-  renderAllNetworkCards();
+  _renderNetworkCards();
 }
 
-function renderAllNetworkCards() {
+function _renderNetworkSearchShell() {
   const nr = document.getElementById('networkSearchResults');
   if (!nr) return;
-
-  if (_allUserNetworks.length === 0) {
-    nr.innerHTML = '<div class="net-empty">У вас ещё нет сеток каналов</div>';
-    return;
-  }
-
   nr.innerHTML = `
-    <div class="filter-label" style="margin:10px 0 8px">🗂 Мои сетки каналов (${_allUserNetworks.length})</div>
-    <div class="channel-list" style="gap:10px">
-      ${_allUserNetworks.map(n => buildNetworkCard(n)).join('')}
+    <!-- Вкладки -->
+    <div class="net-tabs">
+      <div class="net-tab ${_netTab==='my'?'active':''}"  onclick="switchNetTab('my')">🗂 Мои сетки</div>
+      <div class="net-tab ${_netTab==='all'?'active':''}" onclick="switchNetTab('all')">🌐 Все сетки</div>
     </div>
+
+    <!-- Фильтр по категории (горизонтальный скролл) -->
+    <div class="cats-scroll" id="netCatFilter" style="margin:8px 0 6px">
+      ${[['all','⚡ Все'],['tech','🖥️ Tech'],['business','💼 Бизнес'],['finance','📈 Финансы'],
+         ['games','🎮 Игры'],['art','🎨 Творчество'],['news','📰 Новости'],
+         ['entertainment','🎬 Развлечения'],['edu','🎓 Образование'],['other','🌍 Другое']]
+        .map(([v,l]) => `<div class="cat-pill ${_netCatFilter===v?'active':''}" onclick="setNetCat('${v}')">${l}</div>`)
+        .join('')}
+    </div>
+
+    <!-- Список карточек -->
+    <div id="netCardsList"><div class="net-empty">Загрузка…</div></div>
   `;
 }
 
-// Оставляем onNetworkSearch для поля ввода — теперь фильтрует уже загруженные
+function switchNetTab(tab) {
+  _netTab = tab;
+  _renderNetworkSearchShell();
+  _renderNetworkCards();
+}
+
+function setNetCat(cat) {
+  _netCatFilter = cat;
+  // перерисовываем пилюли
+  document.querySelectorAll('#netCatFilter .cat-pill').forEach(p => {
+    p.classList.toggle('active', p.textContent.trim() === document.querySelector(`#netCatFilter .cat-pill[onclick="setNetCat('${cat}')"]`)?.textContent.trim());
+  });
+  // проще — перерисовать весь шелл
+  _renderNetworkSearchShell();
+  _renderNetworkCards();
+}
+
 function onNetworkSearch() {
-  const q = document.getElementById('networkSearch')?.value.toLowerCase().trim() || '';
-  const nr = document.getElementById('networkSearchResults');
-  if (!nr) return;
+  _renderNetworkCards();
+}
 
-  if (!q) {
-    renderAllNetworkCards();
+function _renderNetworkCards() {
+  const listEl = document.getElementById('netCardsList');
+  if (!listEl) return;
+
+  const q   = document.getElementById('networkSearch')?.value.toLowerCase().trim() || '';
+  const src = _netTab === 'my' ? _allUserNetworks : _allPublicNetworks;
+
+  let nets = src.filter(n => {
+    // Фильтр по категории
+    if (_netCatFilter !== 'all' && n.category !== _netCatFilter) return false;
+    // Фильтр по тексту
+    if (q) {
+      return n.name.toLowerCase().includes(q)
+        || (n.category||'').toLowerCase().includes(q)
+        || (n.channels||[]).some(c => c.name.toLowerCase().includes(q) || c.usname.toLowerCase().includes(q));
+    }
+    return true;
+  });
+
+  if (nets.length === 0) {
+    listEl.innerHTML = `<div class="net-empty">${
+      _netTab === 'my'
+        ? 'У вас пока нет сеток. Создайте в разделе Настройки → Сетки каналов'
+        : 'Публичных сеток не найдено'
+    }</div>`;
     return;
   }
 
-  const matched = _allUserNetworks.filter(n =>
-    n.name.toLowerCase().includes(q) ||
-    (n.channels || []).some(c =>
-      c.name.toLowerCase().includes(q) || c.usname.toLowerCase().includes(q)
-    )
-  );
-
-  if (matched.length === 0) {
-    nr.innerHTML = `<div class="net-empty">Сетки не найдены по запросу «${q}»</div>`;
-    return;
-  }
-
-  nr.innerHTML = `
-    <div class="filter-label" style="margin:10px 0 8px">🗂 Найдено сеток: ${matched.length}</div>
+  listEl.innerHTML = `
     <div class="channel-list" style="gap:10px">
-      ${matched.map(n => buildNetworkCard(n)).join('')}
+      ${nets.map(n => buildNetworkCard(n)).join('')}
     </div>
   `;
 }
 
-// Карточка сетки — стиль ch-card, с ценами
+// Карточка сетки
 function buildNetworkCard(net) {
   const channels  = net.channels || [];
   const totalSubs = channels.reduce((s, c) => s + (parseInt(c.subscribers) || 0), 0);
   const sym       = getCurrSymbol(net.currency || 'RUB');
+  const catName   = CAT_NAMES[net.category] || '';
 
   const fmtP = (v, label) => {
     if (!v) return null;
-    if (v === '-') return `<span class="tag" style="opacity:.6">${label}: —</span>`;
+    if (v === '-') return `<span class="tag" style="opacity:.55">${label}: —</span>`;
     return `<span class="tag">${label}: ${v}${sym}</span>`;
   };
 
@@ -393,116 +432,89 @@ function buildNetworkCard(net) {
   return `
   <div class="ch-card" onclick="openNetworkModal(${net.id})" style="cursor:pointer">
     <div class="ch-top">
-      <div class="ch-avatar" style="background:rgba(108,99,255,.15);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">
-        🗂
-      </div>
+      <div class="ch-avatar" style="background:rgba(108,99,255,.15);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🗂</div>
       <div class="ch-info">
         <div class="ch-name-row">
           <span class="ch-name">${net.name}</span>
+          ${net.is_public ? '<span class="badge-verified" title="Публичная">🌐</span>' : ''}
         </div>
-        <div class="ch-username" style="color:var(--text3)">Сетка · ${sym} ${net.currency||'RUB'}</div>
+        <div class="ch-username" style="color:var(--text3)">${sym} ${net.currency||'RUB'}${catName?' · '+catName:''}</div>
         <div class="ch-tags">
           <span class="tag">${channels.length} канал${channels.length===1?'':channels.length<5?'а':'ов'}</span>
           <span class="tag green">👥 ${fmt(totalSubs)}</span>
+          ${catName ? `<span class="tag">${catName}</span>` : ''}
         </div>
       </div>
     </div>
 
-    ${priceHtml ? `<div class="ch-metrics" style="flex-wrap:wrap;gap:6px">${priceHtml}</div>` : ''}
+    ${priceHtml ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 0">${priceHtml}</div>` : ''}
 
-    <div class="ch-metrics" style="flex-wrap:wrap;gap:6px;margin-top:6px">
+    <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">
       ${channels.slice(0, 4).map(c => `
         <div class="metric" style="gap:5px;flex-shrink:0">
           ${c.avatar_url
             ? `<img src="${c.avatar_url}" style="width:16px;height:16px;border-radius:4px;object-fit:cover" onerror="this.style.display='none'">`
-            : '<span style="font-size:14px">📢</span>'
-          }
+            : '<span style="font-size:13px">📢</span>'}
           <strong style="font-size:11px">@${c.usname}</strong>
         </div>`).join('')}
-      ${channels.length > 4 ? `<div class="metric"><strong style="font-size:11px;color:var(--text3)">+${channels.length - 4}</strong></div>` : ''}
+      ${channels.length > 4 ? `<div class="metric"><strong style="font-size:11px;color:var(--text3)">+${channels.length-4}</strong></div>` : ''}
     </div>
 
     <div class="ch-bottom" style="margin-top:10px">
-      <div class="price-badge">📊 Итого: ${fmt(totalSubs)} подп.</div>
-      <div class="ch-action-btns">
-        <button class="ch-btn ch-btn-primary" onclick="event.stopPropagation();openNetworkModal(${net.id})">👁 Подробнее</button>
-      </div>
+      <div class="price-badge">📊 ${fmt(totalSubs)} подп.</div>
+      <button class="ch-btn ch-btn-primary" onclick="event.stopPropagation();openNetworkModal(${net.id})">👁 Подробнее</button>
     </div>
   </div>`;
 }
 
-// Открыть модальное окно сетки
+// Модальное окно сетки
 function openNetworkModal(netId) {
-  const net = _allUserNetworks.find(n => n.id === netId);
+  // Ищем в обоих источниках
+  const net = _allUserNetworks.find(n => n.id === netId)
+           || _allPublicNetworks.find(n => n.id === netId);
   if (!net) return;
 
   const channels  = net.channels || [];
   const totalSubs = channels.reduce((s, c) => s + (parseInt(c.subscribers) || 0), 0);
   const sym       = getCurrSymbol(net.currency || 'RUB');
+  const catName   = CAT_NAMES[net.category] || '';
 
-  const fmtP = (v) => {
-    if (!v) return '—';
-    if (v === '-') return '—';
-    return `${v}${sym}`;
-  };
+  const fmtP = (v) => (!v || v === '-') ? '—' : `${v}${sym}`;
 
   document.getElementById('networkModalContent').innerHTML = `
     <div class="modal-ch-header">
-      <div class="modal-avatar" style="background:rgba(108,99,255,.18);display:flex;align-items:center;justify-content:center;font-size:32px">
-        🗂
-      </div>
+      <div class="modal-avatar" style="background:rgba(108,99,255,.18);display:flex;align-items:center;justify-content:center;font-size:32px">🗂</div>
       <div>
-        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800">
+        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;display:flex;align-items:center;gap:7px">
           ${net.name}
+          ${net.is_public ? '<span class="badge-verified" title="Публичная сетка">🌐</span>' : ''}
         </div>
         <div style="color:var(--text3);font-size:13px;margin:3px 0">Сетка каналов · ${sym} ${net.currency||'RUB'}</div>
         <span class="tag">${channels.length} канал${channels.length===1?'':channels.length<5?'а':'ов'}</span>
+        ${catName ? `<span class="tag" style="margin-left:5px">${catName}</span>` : ''}
       </div>
     </div>
 
-    <!-- Общая статистика -->
     <div class="modal-stat-grid" style="grid-template-columns:repeat(2,1fr)">
-      <div class="modal-stat">
-        <div class="modal-stat-val">${fmt(totalSubs)}</div>
-        <div class="modal-stat-key">Всего подписчиков</div>
-      </div>
-      <div class="modal-stat">
-        <div class="modal-stat-val">${channels.length}</div>
-        <div class="modal-stat-key">Каналов в сетке</div>
-      </div>
+      <div class="modal-stat"><div class="modal-stat-val">${fmt(totalSubs)}</div><div class="modal-stat-key">Всего подписчиков</div></div>
+      <div class="modal-stat"><div class="modal-stat-val">${channels.length}</div><div class="modal-stat-key">Каналов в сетке</div></div>
     </div>
 
-    <!-- Цены сетки -->
-    <div style="margin:0 0 14px;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">Цены рекламы в сетке</div>
+    <div style="margin:4px 0 8px;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">Цены рекламы</div>
     <div class="modal-stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
-      <div class="modal-stat">
-        <div class="modal-stat-val" style="font-size:15px">${fmtP(net.pricead_24)}</div>
-        <div class="modal-stat-key">24 ч</div>
-      </div>
-      <div class="modal-stat">
-        <div class="modal-stat-val" style="font-size:15px">${fmtP(net.pricead_48)}</div>
-        <div class="modal-stat-key">48 ч</div>
-      </div>
-      <div class="modal-stat">
-        <div class="modal-stat-val" style="font-size:15px">${fmtP(net.pricead_72)}</div>
-        <div class="modal-stat-key">72 ч</div>
-      </div>
-      <div class="modal-stat">
-        <div class="modal-stat-val" style="font-size:15px">${fmtP(net.pricead_all)}</div>
-        <div class="modal-stat-key">Навсегда</div>
-      </div>
+      <div class="modal-stat"><div class="modal-stat-val" style="font-size:15px">${fmtP(net.pricead_24)}</div><div class="modal-stat-key">24 ч</div></div>
+      <div class="modal-stat"><div class="modal-stat-val" style="font-size:15px">${fmtP(net.pricead_48)}</div><div class="modal-stat-key">48 ч</div></div>
+      <div class="modal-stat"><div class="modal-stat-val" style="font-size:15px">${fmtP(net.pricead_72)}</div><div class="modal-stat-key">72 ч</div></div>
+      <div class="modal-stat"><div class="modal-stat-val" style="font-size:15px">${fmtP(net.pricead_all)}</div><div class="modal-stat-key">Навсегда</div></div>
     </div>
 
-    <!-- Список каналов -->
-    <div style="margin:0 0 8px;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">
-      Каналы сетки
-    </div>
+    <div style="margin:0 0 8px;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">Каналы сетки</div>
     ${channels.length > 0 ? `
       <div class="net-channel-list">
         ${channels.map(c => {
-          const subs = parseInt(c.subscribers) || 0;
-          const cSym = getCurrSymbol(c.currency || 'RUB');
-          const p24  = c.pricead_24 && c.pricead_24 !== '-' ? `${c.pricead_24}${cSym}/24ч` : null;
+          const subs = parseInt(c.subscribers)||0;
+          const cSym = getCurrSymbol(c.currency||'RUB');
+          const p24  = c.pricead_24 && c.pricead_24!=='-' ? `${c.pricead_24}${cSym}/24ч` : null;
           return `
           <div class="net-ch-row" onclick="closeNetworkModal();openModal(${c.id})">
             <div class="net-ch-avatar">
@@ -537,9 +549,7 @@ function closeNetworkModal(e) {
   }
 }
 
-async function renderNetworkSearchResults(q) {
-  // legacy — не используется
-}
+async function renderNetworkSearchResults(q) { /* legacy */ }
 
 function setSort(el) {
   document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
@@ -1217,7 +1227,7 @@ async function renderNetworkSettings() {
 
   const nets = await apiFetch(`/user/${user.id}/networks`);
   _networks = (nets && !nets.__error) ? nets : [];
-  _allUserNetworks = _networks; // синхронизируем кэш поиска
+  _allUserNetworks = _networks; // синхронизируем кэш поиска "Мои"
 
   renderNetworkSettingsUI();
 }
@@ -1293,8 +1303,12 @@ function _renderNetworkEditorUI(net, myChannels) {
   const block = document.getElementById('networkSettingsBlock');
   if (!block) return;
 
-  const netId = net?.id || null;
-  const sym = getCurrSymbol(document.getElementById('netCurrency')?.value || net?.currency || userCurrencyPrimary || 'RUB');
+  const netId   = net?.id || null;
+  const curSym  = getCurrSymbol(document.getElementById('netCurrency')?.value || net?.currency || userCurrencyPrimary || 'RUB');
+  const curCat  = document.getElementById('netCategory')?.value || net?.category || '';
+  const curPub  = document.getElementById('netIsPublic')
+                    ? document.getElementById('netIsPublic').checked
+                    : (net?.is_public ?? false);
 
   const availableChannels = myChannels.filter(c => !_netEditorChannels.find(cc => cc.id === c.id));
 
@@ -1306,6 +1320,23 @@ function _renderNetworkEditorUI(net, myChannels) {
       <div class="form-group">
         <label class="form-label">Название сетки</label>
         <input class="form-input" id="netNameInput" placeholder="Моя сетка" value="${net?.name || ''}">
+      </div>
+
+      <!-- Категория -->
+      <div class="form-group">
+        <label class="form-label">Категория</label>
+        <select class="form-input" id="netCategory">
+          <option value="">— Без категории —</option>
+          <option value="tech"          ${curCat==='tech'          ?'selected':''}>🖥️ Технологии</option>
+          <option value="business"      ${curCat==='business'      ?'selected':''}>💼 Бизнес</option>
+          <option value="finance"       ${curCat==='finance'       ?'selected':''}>📈 Финансы</option>
+          <option value="games"         ${curCat==='games'         ?'selected':''}>🎮 Игры</option>
+          <option value="art"           ${curCat==='art'           ?'selected':''}>🎨 Творчество</option>
+          <option value="news"          ${curCat==='news'          ?'selected':''}>📰 Новости</option>
+          <option value="entertainment" ${curCat==='entertainment' ?'selected':''}>🎬 Развлечения</option>
+          <option value="edu"           ${curCat==='edu'           ?'selected':''}>🎓 Образование</option>
+          <option value="other"         ${curCat==='other'         ?'selected':''}>🌍 Другое</option>
+        </select>
       </div>
 
       <!-- Валюта -->
@@ -1323,22 +1354,36 @@ function _renderNetworkEditorUI(net, myChannels) {
       <!-- Цены -->
       <div class="form-row">
         <div class="form-group" style="flex:1">
-          <label class="form-label" id="netLabel24">Цена 24ч (${sym})</label>
+          <label class="form-label" id="netLabel24">Цена 24ч (${curSym})</label>
           <input class="form-input" id="netPrice24" placeholder="500 или -" value="${net?.pricead_24||''}">
         </div>
         <div class="form-group" style="flex:1">
-          <label class="form-label" id="netLabel48">Цена 48ч (${sym})</label>
+          <label class="form-label" id="netLabel48">Цена 48ч (${curSym})</label>
           <input class="form-input" id="netPrice48" placeholder="800 или -" value="${net?.pricead_48||''}">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group" style="flex:1">
-          <label class="form-label" id="netLabel72">Цена 72ч (${sym})</label>
+          <label class="form-label" id="netLabel72">Цена 72ч (${curSym})</label>
           <input class="form-input" id="netPrice72" placeholder="1200 или -" value="${net?.pricead_72||''}">
         </div>
         <div class="form-group" style="flex:1">
-          <label class="form-label" id="netLabelAll">Цена навсегда (${sym})</label>
+          <label class="form-label" id="netLabelAll">Цена навсегда (${curSym})</label>
           <input class="form-input" id="netPriceAll" placeholder="2000 или -" value="${net?.pricead_all||''}">
+        </div>
+      </div>
+
+      <!-- Публичность -->
+      <div class="setting-item" style="background:var(--card2);border-radius:12px;padding:12px 14px;margin-bottom:14px;border:1.5px solid var(--border)">
+        <div class="set-text">
+          <div class="set-title">🌐 Публичная сетка</div>
+          <div class="set-sub">Видна всем пользователям в поиске сеток</div>
+        </div>
+        <div class="set-right">
+          <label class="net-toggle-wrap">
+            <input type="checkbox" id="netIsPublic" ${curPub ? 'checked' : ''} style="display:none">
+            <div class="toggle ${curPub ? 'on' : ''}" onclick="this.previousElementSibling.click();this.classList.toggle('on')"></div>
+          </label>
         </div>
       </div>
 
@@ -1356,7 +1401,6 @@ function _renderNetworkEditorUI(net, myChannels) {
                     onclick="netEditorRemoveChannel(${c.id})">✕</span>
                 </div>`).join('')}
         </div>
-
         ${availableChannels.length > 0 ? `
           <label class="form-label" style="margin-bottom:6px">Добавить канал:</label>
           <div style="display:flex;flex-wrap:wrap;gap:6px">
@@ -1378,7 +1422,6 @@ function _renderNetworkEditorUI(net, myChannels) {
     </div>
   `;
 
-  // Сохраняем myChannels в замыкании для перерисовки
   window._netEditorMyChannels = myChannels;
 }
 
@@ -1413,14 +1456,16 @@ async function saveNetwork() {
   const user = tg?.initDataUnsafe?.user;
   if (!user?.id) { showToast('⚠️ Войдите через бота', 'error'); return; }
 
-  const name     = document.getElementById('netNameInput')?.value.trim() || 'Моя сетка';
-  const currency = document.getElementById('netCurrency')?.value || 'RUB';
-  const p24      = document.getElementById('netPrice24')?.value.trim() || null;
-  const p48      = document.getElementById('netPrice48')?.value.trim() || null;
-  const p72      = document.getElementById('netPrice72')?.value.trim() || null;
-  const pAll     = document.getElementById('netPriceAll')?.value.trim() || null;
+  const name      = document.getElementById('netNameInput')?.value.trim() || 'Моя сетка';
+  const currency  = document.getElementById('netCurrency')?.value || 'RUB';
+  const category  = document.getElementById('netCategory')?.value || null;
+  const is_public = document.getElementById('netIsPublic')?.checked ?? false;
+  const p24       = document.getElementById('netPrice24')?.value.trim() || null;
+  const p48       = document.getElementById('netPrice48')?.value.trim() || null;
+  const p72       = document.getElementById('netPrice72')?.value.trim() || null;
+  const pAll      = document.getElementById('netPriceAll')?.value.trim() || null;
 
-  const payload = { user_id: user.id, name, currency,
+  const payload = { user_id: user.id, name, currency, category: category||null, is_public,
     pricead_24: p24, pricead_48: p48, pricead_72: p72, pricead_all: pAll };
 
   let netId = _editingNetworkId;

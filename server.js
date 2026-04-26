@@ -458,18 +458,59 @@ app.get('/api/user/:user_id/networks', async (req, res) => {
 });
 
 // Создать сетку
+// Все публичные сетки (для вкладки поиска — все пользователи)
+app.get('/api/networks/all', async (req, res) => {
+  try {
+    const { category } = req.query;
+    let where = `WHERE cn.is_public = TRUE`;
+    const params = [];
+    if (category && category !== 'all' && VALID_CATEGORIES.includes(category)) {
+      params.push(category);
+      where += ` AND cn.category = $${params.length}`;
+    }
+
+    const nets = await pool.query(
+      `SELECT cn.*, u.username AS owner_username
+       FROM channel_networks cn
+       LEFT JOIN users u ON cn.owner_id = u.id
+       ${where}
+       ORDER BY cn.created_at DESC`,
+      params
+    );
+
+    const result = [];
+    for (const net of nets.rows) {
+      const channels = await pool.query(
+        `SELECT c.id, c.name, c.usname, c.category, c.subscribers, c.avatar_url,
+                c.pricead_24, c.pricead_48, c.pricead_72, c.pricead_all, c.currency
+         FROM channels c
+         JOIN network_channels nc ON c.id = nc.channel_id
+         WHERE nc.network_id = $1
+         ORDER BY nc.added_at`,
+        [net.id]
+      );
+      result.push({ ...net, channels: channels.rows });
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/networks', requireTgAuth, async (req, res) => {
   try {
-    const { user_id, name, pricead_24, pricead_48, pricead_72, pricead_all, currency } = req.body;
+    const { user_id, name, pricead_24, pricead_48, pricead_72, pricead_all, currency, category, is_public } = req.body;
     if (!user_id) return res.status(401).json({ error: 'Не авторизован' });
 
     const cur = VALID_CURRENCIES.includes(currency) ? currency : 'RUB';
+    const cat = VALID_CATEGORIES.includes(category) ? category : null;
     const result = await pool.query(
-      `INSERT INTO channel_networks (owner_id, name, pricead_24, pricead_48, pricead_72, pricead_all, currency)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      `INSERT INTO channel_networks (owner_id, name, pricead_24, pricead_48, pricead_72, pricead_all, currency, category, is_public)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
       [user_id, name || 'Моя сетка',
        normalizePrice(pricead_24), normalizePrice(pricead_48),
-       normalizePrice(pricead_72), normalizePrice(pricead_all), cur]
+       normalizePrice(pricead_72), normalizePrice(pricead_all),
+       cur, cat, is_public === true]
     );
     res.status(201).json({ ...result.rows[0], channels: [] });
   } catch (err) {
@@ -477,11 +518,11 @@ app.post('/api/networks', requireTgAuth, async (req, res) => {
   }
 });
 
-// Обновить сетку (название + цены)
+// Обновить сетку
 app.put('/api/networks/:id', requireTgAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { user_id, name, pricead_24, pricead_48, pricead_72, pricead_all, currency } = req.body;
+    const { user_id, name, pricead_24, pricead_48, pricead_72, pricead_all, currency, category, is_public } = req.body;
     if (!user_id) return res.status(401).json({ error: 'Не авторизован' });
 
     const check = await pool.query('SELECT owner_id FROM channel_networks WHERE id = $1', [id]);
@@ -489,12 +530,15 @@ app.put('/api/networks/:id', requireTgAuth, async (req, res) => {
     if (String(check.rows[0].owner_id) !== String(user_id)) return res.status(403).json({ error: 'Нет доступа' });
 
     const cur = VALID_CURRENCIES.includes(currency) ? currency : 'RUB';
+    const cat = VALID_CATEGORIES.includes(category) ? category : null;
     const result = await pool.query(
       `UPDATE channel_networks
-       SET name=$1, pricead_24=$2, pricead_48=$3, pricead_72=$4, pricead_all=$5, currency=$6
-       WHERE id=$7 RETURNING *`,
+       SET name=$1, pricead_24=$2, pricead_48=$3, pricead_72=$4, pricead_all=$5,
+           currency=$6, category=$7, is_public=$8
+       WHERE id=$9 RETURNING *`,
       [name, normalizePrice(pricead_24), normalizePrice(pricead_48),
-       normalizePrice(pricead_72), normalizePrice(pricead_all), cur, id]
+       normalizePrice(pricead_72), normalizePrice(pricead_all),
+       cur, cat, is_public === true, id]
     );
     res.json(result.rows[0]);
   } catch (err) {

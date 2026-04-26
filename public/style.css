@@ -951,3 +951,35 @@ a {
   color: var(--text2);
   border: 1.5px solid var(--border);
 }
+
+/* ── Вкладки сеток ────────────────────────────────────────────────────────── */
+.net-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0 4px;
+}
+
+.net-tab {
+  flex: 1;
+  text-align: center;
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--card2);
+  color: var(--text3);
+  border: 1.5px solid var(--border);
+  transition: all .18s;
+}
+
+.net-tab.active {
+  background: rgba(108,99,255,.15);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.net-toggle-wrap {
+  display: flex;
+  align-items: center;
+}
