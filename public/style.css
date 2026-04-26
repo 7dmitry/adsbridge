@@ -794,3 +794,61 @@ a {
 .currency-option.extra.selected .curr-opt-check {
   color: var(--green);
 }
+
+/* ── Вертикальные фильтры поиска ─────────────────────────────────────────── */
+.filter-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  margin: 12px 0 6px;
+}
+
+.filter-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.filter-col .filter-chip,
+.filter-col .fcat,
+.filter-col .fcurr {
+  width: 100%;
+  text-align: left;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--card2);
+  color: var(--text2);
+  border: 1.5px solid var(--border);
+  cursor: pointer;
+  transition: all .18s;
+  white-space: nowrap;
+}
+
+.filter-col .filter-chip.active,
+.filter-col .fcat.active,
+.filter-col .fcurr.active {
+  background: rgba(108,99,255,.15);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Модальная сетка 3 столбца для цен */
+.modal-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 16px 0;
+}
+
+/* Сетки каналов */
+.network-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}

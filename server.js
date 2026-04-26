@@ -83,13 +83,15 @@ const VALID_CATEGORIES = [
   'art','news','entertainment','edu','other'
 ];
 
-// Проверяет значение цены: допустимо '-', null, '' или число 0–100000
-function validatePrice(val, label) {
-  if (!val || val === '' || val === null) return null; // пусто — ок
-  if (val === '-') return null;                        // прочерк — ок
-  const n = parseFloat(val);
-  if (isNaN(n) || n < 0 || n > 100000) return `Недопустимая цена ${label}`;
-  return null;
+// Нормализует цену: пустая строка → null, '-' → '-', число → число
+function normalizePrice(val) {
+  if (val === null || val === undefined) return null;
+  const str = String(val).trim();
+  if (str === '' || str === 'null') return null;
+  if (str === '-') return '-';
+  const num = parseFloat(str);
+  if (isNaN(num) || num < 0 || num > 10000000) return null;
+  return String(num);
 }
 
 function validateChannelData({ usname, category, pricead_24, pricead_48, pricead_72, pricead_all }) {
@@ -102,19 +104,8 @@ function validateChannelData({ usname, category, pricead_24, pricead_48, pricead
   if (!category || !VALID_CATEGORIES.includes(category)) {
     return 'Недопустимая категория';
   }
-  return validatePrice(pricead_24, '24ч')
-      || validatePrice(pricead_48, '48ч')
-      || validatePrice(pricead_72, '72ч')
-      || validatePrice(pricead_all, 'навсегда')
-      || null;
-}
-
-// Нормализует значение цены: '-' остаётся '-', число — строкой, пусто — null
-function normalizePrice(val) {
-  if (!val || val === '') return null;
-  if (val === '-') return '-';
-  const n = parseFloat(val);
-  return isNaN(n) ? null : String(n);
+  // Цены проверяем мягко — normalizePrice обработает
+  return null;
 }
 
 // ===== STATS =====
@@ -137,7 +128,6 @@ app.get('/api/stats', async (req, res) => {
 
 // ===== USERS =====
 
-// Создать или обновить пользователя (при регистрации не трогаем валюту)
 app.post('/api/users', requireTgAuth, async (req, res) => {
   try {
     const { id, username, first_name, last_name } = req.body;
@@ -156,7 +146,6 @@ app.post('/api/users', requireTgAuth, async (req, res) => {
   }
 });
 
-// Получить настройки валюты пользователя
 app.get('/api/users/:id/currency', async (req, res) => {
   try {
     const { id } = req.params;
@@ -181,7 +170,6 @@ app.get('/api/users/:id/currency', async (req, res) => {
   }
 });
 
-// Обновить валюты пользователя
 app.put('/api/users/:id/currency', requireTgAuth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -206,7 +194,6 @@ app.put('/api/users/:id/currency', requireTgAuth, async (req, res) => {
       return res.status(404).json({ error: 'Пользователь не найден' });
     }
 
-    // Синхронизируем currency во всех каналах этого пользователя
     await pool.query(
       `UPDATE channels SET currency = $1 WHERE owner_id = $2`,
       [currency_primary, id]
@@ -220,7 +207,6 @@ app.put('/api/users/:id/currency', requireTgAuth, async (req, res) => {
 
 // ===== CHANNELS =====
 
-// Получить все каналы (JOIN с users для получения валют владельца)
 app.get('/api/channels', async (req, res) => {
   try {
     const { category, currency } = req.query;
@@ -233,13 +219,12 @@ app.get('/api/channels', async (req, res) => {
       whereClause += ` WHERE c.category = $${params.length}`;
     }
 
-    // Фильтр по валюте: канал принимает эту валюту (основная или доп)
     if (currency && currency !== 'all' && VALID_CURRENCIES.includes(currency)) {
       const connector = whereClause ? ' AND' : ' WHERE';
       params.push(currency);
       whereClause += `${connector} (
         c.currency = $${params.length}
-        OR u.currency_extra @> $${params.length}::jsonb
+        OR u.currency_extra @> to_jsonb($${params.length}::text)
       )`;
     }
 
@@ -370,6 +355,7 @@ app.delete('/api/channels/:id', requireTgAuth, async (req, res) => {
       return res.status(401).json({ error: 'Не авторизован' });
     }
 
+    // Удаляем канал из всех сеток автоматически (ON DELETE CASCADE на network_channels)
     const result = await pool.query(
       'DELETE FROM channels WHERE id = $1 AND owner_id = $2 RETURNING *',
       [id, parseInt(user_id)]
@@ -435,6 +421,136 @@ app.delete('/api/user_admin/:user_id/:channel_id', requireTgAuth, async (req, re
     const { user_id, channel_id } = req.params;
     await pool.query('DELETE FROM user_admin WHERE user_id=$1 AND channel_id=$2', [user_id, channel_id]);
     res.json({ message: 'Удалено' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== CHANNEL NETWORKS (СЕТКИ) =====
+
+// Получить все сетки пользователя (с каналами)
+app.get('/api/user/:user_id/networks', async (req, res) => {
+  try {
+    const { user_id } = req.params;
+    const nets = await pool.query(
+      `SELECT * FROM channel_networks WHERE owner_id = $1 ORDER BY created_at DESC`,
+      [user_id]
+    );
+
+    const result = [];
+    for (const net of nets.rows) {
+      const channels = await pool.query(
+        `SELECT c.id, c.name, c.usname, c.category, c.subscribers, c.avatar_url,
+                c.pricead_24, c.pricead_48, c.pricead_72, c.pricead_all, c.currency
+         FROM channels c
+         JOIN network_channels nc ON c.id = nc.channel_id
+         WHERE nc.network_id = $1
+         ORDER BY nc.added_at`,
+        [net.id]
+      );
+      result.push({ ...net, channels: channels.rows });
+    }
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Создать сетку
+app.post('/api/networks', requireTgAuth, async (req, res) => {
+  try {
+    const { user_id, name } = req.body;
+    if (!user_id) return res.status(401).json({ error: 'Не авторизован' });
+
+    const result = await pool.query(
+      `INSERT INTO channel_networks (owner_id, name) VALUES ($1, $2) RETURNING *`,
+      [user_id, name || 'Моя сетка']
+    );
+    res.status(201).json({ ...result.rows[0], channels: [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Обновить название сетки
+app.put('/api/networks/:id', requireTgAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id, name } = req.body;
+    if (!user_id) return res.status(401).json({ error: 'Не авторизован' });
+
+    const check = await pool.query('SELECT owner_id FROM channel_networks WHERE id = $1', [id]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Сетка не найдена' });
+    if (String(check.rows[0].owner_id) !== String(user_id)) return res.status(403).json({ error: 'Нет доступа' });
+
+    const result = await pool.query(
+      `UPDATE channel_networks SET name = $1 WHERE id = $2 RETURNING *`,
+      [name, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Удалить сетку
+app.delete('/api/networks/:id', requireTgAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id } = req.body;
+    if (!user_id) return res.status(401).json({ error: 'Не авторизован' });
+
+    const check = await pool.query('SELECT owner_id FROM channel_networks WHERE id = $1', [id]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Сетка не найдена' });
+    if (String(check.rows[0].owner_id) !== String(user_id)) return res.status(403).json({ error: 'Нет доступа' });
+
+    await pool.query('DELETE FROM channel_networks WHERE id = $1', [id]);
+    res.json({ message: 'Сетка удалена' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Добавить канал в сетку
+app.post('/api/networks/:id/channels', requireTgAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id, channel_id } = req.body;
+    if (!user_id) return res.status(401).json({ error: 'Не авторизован' });
+
+    const check = await pool.query('SELECT owner_id FROM channel_networks WHERE id = $1', [id]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Сетка не найдена' });
+    if (String(check.rows[0].owner_id) !== String(user_id)) return res.status(403).json({ error: 'Нет доступа' });
+
+    // Проверяем что канал принадлежит этому пользователю
+    const chCheck = await pool.query('SELECT owner_id FROM channels WHERE id = $1', [channel_id]);
+    if (chCheck.rows.length === 0) return res.status(404).json({ error: 'Канал не найден' });
+    if (String(chCheck.rows[0].owner_id) !== String(user_id)) return res.status(403).json({ error: 'Это не ваш канал' });
+
+    await pool.query(
+      `INSERT INTO network_channels (network_id, channel_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [id, channel_id]
+    );
+    res.json({ message: 'Канал добавлен в сетку' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Удалить канал из сетки
+app.delete('/api/networks/:id/channels/:channel_id', requireTgAuth, async (req, res) => {
+  try {
+    const { id, channel_id } = req.params;
+    const { user_id } = req.body;
+    if (!user_id) return res.status(401).json({ error: 'Не авторизован' });
+
+    const check = await pool.query('SELECT owner_id FROM channel_networks WHERE id = $1', [id]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Сетка не найдена' });
+    if (String(check.rows[0].owner_id) !== String(user_id)) return res.status(403).json({ error: 'Нет доступа' });
+
+    await pool.query('DELETE FROM network_channels WHERE network_id=$1 AND channel_id=$2', [id, channel_id]);
+    res.json({ message: 'Канал удалён из сетки' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -540,10 +656,12 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
     }
 
     const sym = CURRENCY_SYMBOLS[ch.currency] || '₽';
-    const price24  = ch.pricead_24  ? `${ch.pricead_24}${sym}`  : '—';
-    const priceAll = ch.pricead_all ? `${ch.pricead_all}${sym}` : '—';
+    const formatPrice = (p) => (p && p !== '-') ? `${p}${sym}` : (p === '-' ? '—' : '—');
+    const price24  = formatPrice(ch.pricead_24);
+    const price48  = formatPrice(ch.pricead_48);
+    const price72  = formatPrice(ch.pricead_72);
+    const priceAll = formatPrice(ch.pricead_all);
 
-    // Формируем список принимаемых валют
     let extras = ch.owner_currency_extra;
     if (typeof extras === 'string') { try { extras = JSON.parse(extras); } catch { extras = []; } }
     const allCurrs = [ch.currency, ...(Array.isArray(extras) ? extras.filter(c => c !== ch.currency) : [])];
@@ -553,6 +671,8 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
       `📢 *${ch.name}*\n` +
       `@${ch.usname}\n\n` +
       `💰 Реклама 24ч: ${price24}\n` +
+      `💰 Реклама 48ч: ${price48}\n` +
+      `💰 Реклама 72ч: ${price72}\n` +
       `💰 Реклама навсегда: ${priceAll}\n` +
       `👥 Подписчиков: ${ch.subscribers || 0}\n` +
       `💳 Оплата: ${payStr}\n\n` +
@@ -615,60 +735,6 @@ app.patch('/api/channels/:id/collab', requireTgAuth, async (req, res) => {
     );
 
     res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ===== CHANNEL GRID (Сетки каналов) =====
-
-// Получить сетку пользователя
-app.get('/api/users/:id/grid', requireTgAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query(
-      'SELECT channel_grid FROM users WHERE id = $1',
-      [id]
-    );
-    if (result.rows.length === 0) return res.json([]);
-    let grid = result.rows[0].channel_grid;
-    if (typeof grid === 'string') { try { grid = JSON.parse(grid); } catch { grid = []; } }
-    res.json(Array.isArray(grid) ? grid : []);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Сохранить сетку пользователя
-app.put('/api/users/:id/grid', requireTgAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { grid } = req.body;
-
-    if (!Array.isArray(grid)) {
-      return res.status(400).json({ error: 'grid должен быть массивом' });
-    }
-
-    // Валидация структуры сетки
-    for (const item of grid) {
-      if (!item.name || typeof item.name !== 'string') {
-        return res.status(400).json({ error: 'Каждая сетка должна иметь название' });
-      }
-      if (!Array.isArray(item.channels)) {
-        return res.status(400).json({ error: 'channels должен быть массивом' });
-      }
-    }
-
-    const result = await pool.query(
-      `UPDATE users SET channel_grid = $1::jsonb WHERE id = $2 RETURNING channel_grid`,
-      [JSON.stringify(grid), id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Пользователь не найден' });
-    }
-
-    res.json({ ok: true, grid });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

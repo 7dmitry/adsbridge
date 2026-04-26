@@ -3,7 +3,6 @@
 // git add .
 // git commit -m "fix db connection"
 // git push
-
 const tg = window.Telegram?.WebApp;
 if (tg) {
   tg.ready();
@@ -24,7 +23,12 @@ async function apiFetch(path, options = {}) {
       },
       ...options,
     });
-    if (!res.ok) throw new Error('Ошибка сервера: ' + res.status);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      errData.__error = true;
+      errData.status = res.status;
+      return errData;
+    }
     return await res.json();
   } catch (err) {
     showToast('⚠️ Нет связи с сервером', 'error');
@@ -43,7 +47,6 @@ const CURRENCIES = {
 
 const ALL_CURRENCIES = ['RUB', 'KZT', 'TON', 'USD', 'STARS'];
 
-// Состояние валют пользователя
 let userCurrencyPrimary = 'RUB';
 let userCurrencyExtra   = [];
 
@@ -87,7 +90,7 @@ async function loadChannels(category = null, currency = null) {
   if (currency  && currency  !== 'all') params.push(`currency=${currency}`);
   if (params.length) url += '?' + params.join('&');
   const data = await apiFetch(url);
-  if (!data) return;
+  if (!data || data.__error) return;
   CHANNELS = data.map(mapChannel);
 }
 
@@ -121,7 +124,7 @@ function mapChannel(ch) {
 // ── Загрузка статистики ───────────────────────────────────────────────────────
 async function loadStats() {
   const data = await apiFetch('/stats');
-  if (!data) return;
+  if (!data || data.__error) return;
   document.getElementById('statChannels').textContent = fmt(parseInt(data.total_channels) || 0);
   document.getElementById('statSubs').textContent     = fmt(parseInt(data.total_subscribers) || 0);
   document.getElementById('statPremium').textContent  = fmt(parseInt(data.premium_channels) || 0);
@@ -174,32 +177,22 @@ function getCurrSymbol(currCode) {
 function getChannelPayCurrencies(ch) {
   const extras = Array.isArray(ch.ownerCurrencyExtra) ? ch.ownerCurrencyExtra : [];
   const all = [ch.currency, ...extras.filter(c => c !== ch.currency)];
-  return all.filter(c => CURRENCIES[c]); // только известные валюты
+  return all.filter(c => CURRENCIES[c]);
 }
 
-// Форматирует цену: '-' → '—', число → число, null → '—'
-function fmtPrice(val, sym, label) {
+// ── Отобразить цену (поддержка '-') ──────────────────────────────────────────
+function displayPrice(val, sym, suffix) {
   if (!val || val === '') return null;
-  if (val === '-') return `—/${label}`;
-  return `${val}${sym}/${label}`;
+  if (val === '-') return `—/${suffix}`;
+  return `${val}${sym}/${suffix}`;
 }
 
 // ── Channel card HTML ─────────────────────────────────────────────────────────
 function buildCard(ch) {
   const sym     = getCurrSymbol(ch.currency);
-  const p24  = ch.price24  ? (ch.price24  === '-' ? '—' : `${ch.price24}${sym}`)  : null;
-  const p48  = ch.price48  ? (ch.price48  === '-' ? '—' : `${ch.price48}${sym}`)  : null;
-  const p72  = ch.price72  ? (ch.price72  === '-' ? '—' : `${ch.price72}${sym}`)  : null;
-  const pAll = ch.priceAll ? (ch.priceAll === '-' ? '—' : `${ch.priceAll}${sym}`) : null;
-
-  // Строим строку цен только из заполненных значений
-  const priceItems = [];
-  if (p24  !== null) priceItems.push(`24ч: ${p24}`);
-  if (p48  !== null) priceItems.push(`48ч: ${p48}`);
-  if (p72  !== null) priceItems.push(`72ч: ${p72}`);
-  if (pAll !== null) priceItems.push(`∞: ${pAll}`);
-  const priceStr = priceItems.length ? priceItems.join(' · ') : '—';
-
+  const price24 = displayPrice(ch.price24, sym, '24ч');
+  const priceAll= displayPrice(ch.priceAll, sym, '∞');
+  const priceStr = [price24, priceAll].filter(Boolean).join(' · ') || '—';
   return `
   <div class="ch-card" onclick="openModal(${ch.id})">
     <div class="ch-top">
@@ -218,7 +211,6 @@ function buildCard(ch) {
         <div class="ch-tags">
           <span class="tag">${CAT_NAMES[ch.cat] || ch.cat}</span>
           ${ch.collab ? '<span class="tag green">🤝 ВП</span>' : ''}
-          ${ch.er > 10 ? '<span class="tag orange">🔥 Топ ER</span>' : ''}
         </div>
       </div>
     </div>
@@ -266,17 +258,17 @@ async function doSearch() {
   const subsMax  = parseInt(document.getElementById('subsMax')?.value)    || Infinity;
   const priceMin = parseFloat(document.getElementById('priceMin')?.value) || 0;
   const priceMax = parseFloat(document.getElementById('priceMax')?.value) || Infinity;
+  const networkSearch = document.getElementById('networkSearch')?.value.toLowerCase().trim() || '';
 
   let data = CHANNELS.filter(c => {
     if (currentFcat !== 'all' && c.cat !== currentFcat) return false;
 
-    // Поиск по тексту (включая валюту через поисковый запрос)
     if (q) {
       const currSymbol = getCurrSymbol(c.currency).toLowerCase();
       const currName   = (CURRENCIES[c.currency]?.name || '').toLowerCase();
       const textMatch  = c.name.toLowerCase().includes(q)
                       || c.username.toLowerCase().includes(q)
-                      || c.desc.toLowerCase().includes(q)
+                      || (c.desc || '').toLowerCase().includes(q)
                       || currSymbol.includes(q)
                       || currName.includes(q)
                       || c.currency.toLowerCase().includes(q);
@@ -286,7 +278,6 @@ async function doSearch() {
     if (c.subs < subsMin || c.subs > subsMax) return false;
     if (c.price < priceMin || c.price > priceMax) return false;
 
-    // Фильтр по валюте
     if (currentFcurr !== 'all') {
       const payCurrs = getChannelPayCurrencies(c);
       if (!payCurrs.includes(currentFcurr)) return false;
@@ -309,6 +300,54 @@ async function doSearch() {
   if (info) {
     info.textContent = `Найдено ${data.length} кан${data.length===1?'ал':data.length<5?'ала':'алов'}`;
   }
+
+  // Поиск по сеткам
+  if (networkSearch) {
+    renderNetworkSearchResults(networkSearch);
+  } else {
+    const nr = document.getElementById('networkSearchResults');
+    if (nr) nr.innerHTML = '';
+  }
+}
+
+let _allUserNetworks = [];
+
+async function renderNetworkSearchResults(q) {
+  const user = tg?.initDataUnsafe?.user;
+  if (!user?.id) return;
+
+  if (_allUserNetworks.length === 0) {
+    const nets = await apiFetch(`/user/${user.id}/networks`);
+    if (nets && !nets.__error) _allUserNetworks = nets;
+  }
+
+  const matched = _allUserNetworks.filter(n =>
+    n.name.toLowerCase().includes(q) ||
+    (n.channels || []).some(c => c.name.toLowerCase().includes(q) || c.usname.toLowerCase().includes(q))
+  );
+
+  const nr = document.getElementById('networkSearchResults');
+  if (!nr) return;
+
+  if (matched.length === 0) {
+    nr.innerHTML = `<div class="filter-label" style="margin-top:12px;color:var(--text3)">Сетки не найдены по запросу «${q}»</div>`;
+    return;
+  }
+
+  nr.innerHTML = `
+    <div class="filter-label" style="margin-top:12px">🗂 Найденные сетки</div>
+    ${matched.map(n => `
+      <div class="manage-ch-item" style="margin-bottom:8px">
+        <div class="manage-ch-info">
+          <div class="manage-ch-name">🗂 ${n.name}</div>
+          <div class="manage-ch-meta">${(n.channels||[]).length} каналов</div>
+          <div class="manage-ch-prices">
+            ${(n.channels||[]).slice(0,3).map(c => `<span class="tag">@${c.usname}</span>`).join('')}
+            ${(n.channels||[]).length > 3 ? `<span class="tag">+${n.channels.length - 3}</span>` : ''}
+          </div>
+        </div>
+      </div>`).join('')}
+  `;
 }
 
 function setSort(el) {
@@ -325,12 +364,10 @@ function setFcat(el) {
   doSearch();
 }
 
-// ── Фильтр по валюте в поиске ─────────────────────────────────────────────────
 function setFcurr(el) {
   document.querySelectorAll('.fcurr').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
   currentFcurr = el.dataset.fcurr;
-  // Обновляем метку диапазона цен
   const label = document.getElementById('priceCurrLabel');
   if (label) {
     const sym = currentFcurr === 'all' ? '₽/ꘜ/$…' : getCurrSymbol(currentFcurr);
@@ -375,13 +412,13 @@ function openModal(id) {
   if (!ch) return;
 
   const sym = getCurrSymbol(ch.currency);
-  const fP  = (val, label) => val ? (val === '-' ? `— (${label})` : `${val}${sym}`) : '—';
-  const price24str  = fP(ch.price24,  '24ч');
-  const price48str  = fP(ch.price48,  '48ч');
-  const price72str  = fP(ch.price72,  '72ч');
-  const priceAllStr = fP(ch.priceAll, '∞');
 
-  // Принимаемые валюты
+  const fmtP = (v) => {
+    if (!v || v === '') return '—';
+    if (v === '-') return '—';
+    return `${v}${sym}`;
+  };
+
   const payCurrs = getChannelPayCurrencies(ch);
   const payHtml  = payCurrs.length
     ? `<div class="modal-pay-row">
@@ -422,20 +459,20 @@ function openModal(id) {
         <div class="modal-stat-key">Взаимопиар</div>
       </div>
       <div class="modal-stat">
-        <div class="modal-stat-val">${price24str}</div>
+        <div class="modal-stat-val">${fmtP(ch.price24)}</div>
         <div class="modal-stat-key">Реклама 24ч</div>
       </div>
       <div class="modal-stat">
-        <div class="modal-stat-val">${price48str}</div>
+        <div class="modal-stat-val">${fmtP(ch.price48)}</div>
         <div class="modal-stat-key">Реклама 48ч</div>
       </div>
       <div class="modal-stat">
-        <div class="modal-stat-val">${price72str}</div>
+        <div class="modal-stat-val">${fmtP(ch.price72)}</div>
         <div class="modal-stat-key">Реклама 72ч</div>
       </div>
       <div class="modal-stat">
-        <div class="modal-stat-val">${priceAllStr}</div>
-        <div class="modal-stat-key">Реклама навсегда</div>
+        <div class="modal-stat-val">${fmtP(ch.priceAll)}</div>
+        <div class="modal-stat-key">Навсегда</div>
       </div>
     </div>
     ${payHtml}
@@ -457,7 +494,6 @@ function closeModal(e) {
 
 // ── MANAGE PAGE ───────────────────────────────────────────────────────────────
 async function renderManagePage() {
-  const sym = getCurrSymbol(userCurrencyPrimary);
   document.getElementById('manageFormCard').innerHTML = `
     <div class="manage-form-title" id="manageFormTitle">➕ Добавить канал</div>
     <div class="form-group">
@@ -479,26 +515,33 @@ async function renderManagePage() {
         <option value="other">🌍 Другое</option>
       </select>
     </div>
-    <div class="form-hint" style="font-size:11px;color:var(--text3);margin:-4px 0 8px">
-      💡 Введите цену или <strong>-</strong> если размещение недоступно
+    <div class="form-group">
+      <label class="form-label">Валюта</label>
+      <select class="form-input" id="fCurrency" onchange="updatePriceLabels()">
+        <option value="RUB">₽ RUB</option>
+        <option value="KZT">₸ KZT</option>
+        <option value="TON">ꘜ TON</option>
+        <option value="USD">$ USD</option>
+        <option value="STARS">⭐️ Stars</option>
+      </select>
     </div>
     <div class="form-row">
       <div class="form-group" style="flex:1">
-        <label class="form-label" id="label24">24ч (${sym})</label>
+        <label class="form-label" id="label24">Цена 24ч</label>
         <input class="form-input" id="fPrice24" placeholder="500 или -">
       </div>
       <div class="form-group" style="flex:1">
-        <label class="form-label" id="label48">48ч (${sym})</label>
-        <input class="form-input" id="fPrice48" placeholder="900 или -">
+        <label class="form-label" id="label48">Цена 48ч</label>
+        <input class="form-input" id="fPrice48" placeholder="800 или -">
       </div>
     </div>
     <div class="form-row">
       <div class="form-group" style="flex:1">
-        <label class="form-label" id="label72">72ч (${sym})</label>
+        <label class="form-label" id="label72">Цена 72ч</label>
         <input class="form-input" id="fPrice72" placeholder="1200 или -">
       </div>
       <div class="form-group" style="flex:1">
-        <label class="form-label" id="labelAll">Навсегда (${sym})</label>
+        <label class="form-label" id="labelAll">Цена навсегда</label>
         <input class="form-input" id="fPriceAll" placeholder="2000 или -">
       </div>
     </div>
@@ -521,18 +564,18 @@ async function renderManagePage() {
   list.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-title">Загрузка…</div></div>';
   const data = await apiFetch(`/user/${userId}/channels`);
 
-  if (!data || data.length === 0) {
+  if (!data || data.__error || data.length === 0) {
     list.innerHTML = emptyState('Нет каналов', 'Добавьте первый канал выше');
     return;
   }
 
+  const sym = getCurrSymbol(userCurrencyPrimary || 'RUB');
   list.innerHTML = data.map(ch => {
-    const sym = getCurrSymbol(userCurrencyPrimary || ch.currency || 'RUB');
     const prices = [
-      ch.pricead_24  ? `24ч: ${ch.pricead_24 === '-' ? '—' : ch.pricead_24 + sym}`  : null,
-      ch.pricead_48  ? `48ч: ${ch.pricead_48 === '-' ? '—' : ch.pricead_48 + sym}`  : null,
-      ch.pricead_72  ? `72ч: ${ch.pricead_72 === '-' ? '—' : ch.pricead_72 + sym}`  : null,
-      ch.pricead_all ? `∞: ${ch.pricead_all === '-' ? '—' : ch.pricead_all + sym}` : null,
+      ch.pricead_24  ? `24ч: ${ch.pricead_24  === '-' ? '—' : ch.pricead_24  + sym}` : null,
+      ch.pricead_48  ? `48ч: ${ch.pricead_48  === '-' ? '—' : ch.pricead_48  + sym}` : null,
+      ch.pricead_72  ? `72ч: ${ch.pricead_72  === '-' ? '—' : ch.pricead_72  + sym}` : null,
+      ch.pricead_all ? `∞: ${ch.pricead_all  === '-' ? '—' : ch.pricead_all + sym}` : null,
     ].filter(Boolean);
     return `
     <div class="manage-ch-item">
@@ -546,21 +589,26 @@ async function renderManagePage() {
       </div>
       <div class="manage-ch-btns">
         <button class="ch-btn ch-btn-ghost" onclick="editChannel(${ch.id})">✏️</button>
-        <button class="ch-btn ch-btn-danger" onclick="deleteChannel(${ch.id}, '${ch.name}')">🗑</button>
+        <button class="ch-btn ch-btn-danger" onclick="deleteChannel(${ch.id}, '${ch.name.replace(/'/g,"\\'")}')">🗑</button>
       </div>
     </div>`;
   }).join('');
 }
 
-// Обновляет подписи к полям цены при смене валюты
 function updatePriceLabels() {
   const sel = document.getElementById('fCurrency');
   if (!sel) return;
   const sym = getCurrSymbol(sel.value);
-  const l24 = document.getElementById('label24');
-  const lAll = document.getElementById('labelAll');
-  if (l24)  l24.textContent  = `Цена рекламы 24ч (${sym})`;
-  if (lAll) lAll.textContent = `Цена навсегда (${sym})`;
+  const labels = {
+    label24: `Цена 24ч (${sym})`,
+    label48: `Цена 48ч (${sym})`,
+    label72: `Цена 72ч (${sym})`,
+    labelAll: `Цена навсегда (${sym})`,
+  };
+  Object.entries(labels).forEach(([id, txt]) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = txt;
+  });
 }
 
 // ── Добавить / обновить канал ─────────────────────────────────────────────────
@@ -572,7 +620,7 @@ async function submitChannel() {
   const price48  = document.getElementById('fPrice48')?.value.trim();
   const price72  = document.getElementById('fPrice72')?.value.trim();
   const priceAll = document.getElementById('fPriceAll')?.value.trim();
-  const currency = document.getElementById('fCurrency')?.value || userCurrencyPrimary || 'RUB';
+  const currency = document.getElementById('fCurrency')?.value || 'RUB';
 
   if (!usname || !category) {
     showToast('⚠️ Заполните обязательные поля', 'error');
@@ -583,8 +631,10 @@ async function submitChannel() {
     const data = await apiFetch(`/channels/${editingChannelId}`);
     const body = {
       name: data.name, usname, category,
-      pricead_24: price24 || null, pricead_48: price48 || null,
-      pricead_72: price72 || null, pricead_all: priceAll || null,
+      pricead_24:  price24  || null,
+      pricead_48:  price48  || null,
+      pricead_72:  price72  || null,
+      pricead_all: priceAll || null,
       owner_id: user?.id || 0,
       user_id:  user?.id,
       currency,
@@ -592,16 +642,23 @@ async function submitChannel() {
     const result = await apiFetch(`/channels/${editingChannelId}`, {
       method: 'PUT', body: JSON.stringify(body)
     });
-    if (result) { showToast('✅ Канал обновлён!', 'success'); resetForm(); renderManagePage(); loadStats(); }
+    if (result && !result.__error) {
+      showToast('✅ Канал обновлён!', 'success');
+      resetForm();
+      renderManagePage();
+      loadStats();
+    } else {
+      showToast(`❌ ${result?.error || result?.message || 'Ошибка'}`, 'error');
+    }
     return;
   }
 
   showVerifyStep(usname, {
     usname, category, currency,
     name: '',
-    pricead_24:  price24 || null,
-    pricead_48:  price48 || null,
-    pricead_72:  price72 || null,
+    pricead_24:  price24  || null,
+    pricead_48:  price48  || null,
+    pricead_72:  price72  || null,
     pricead_all: priceAll || null,
     owner_id: user?.id || 0
   });
@@ -670,19 +727,13 @@ async function verifyAndSave() {
     body: JSON.stringify(channelData),
   });
 
-  if (!result) {
+  if (!result || result.__error) {
     btn.textContent = '🔍 Проверить';
     btn.disabled = false;
-    return;
-  }
-
-  if (result.__error) {
-    btn.textContent = '🔍 Проверить';
-    btn.disabled = false;
-    if (result.status === 409) {
+    if (result?.status === 409) {
       showToast('❌ Этот канал уже добавлен другим пользователем', 'error');
     } else {
-      showToast(`❌ ${result.message}`, 'error');
+      showToast(`❌ ${result?.message || result?.error || 'Ошибка сохранения'}`, 'error');
     }
     return;
   }
@@ -703,17 +754,19 @@ async function verifyAndSave() {
 // ── Редактировать канал ───────────────────────────────────────────────────────
 async function editChannel(id) {
   const data = await apiFetch(`/channels/${id}`);
-  if (!data) return;
+  if (!data || data.__error) return;
 
   editingChannelId = id;
 
   if (document.getElementById('fUsname'))   document.getElementById('fUsname').value   = data.usname || '';
   if (document.getElementById('fCategory')) document.getElementById('fCategory').value = data.category || '';
-  if (document.getElementById('fPrice24'))  document.getElementById('fPrice24').value  = data.pricead_24 || '';
-  if (document.getElementById('fPrice48'))  document.getElementById('fPrice48').value  = data.pricead_48 || '';
-  if (document.getElementById('fPrice72'))  document.getElementById('fPrice72').value  = data.pricead_72 || '';
+  if (document.getElementById('fPrice24'))  document.getElementById('fPrice24').value  = data.pricead_24  || '';
+  if (document.getElementById('fPrice48'))  document.getElementById('fPrice48').value  = data.pricead_48  || '';
+  if (document.getElementById('fPrice72'))  document.getElementById('fPrice72').value  = data.pricead_72  || '';
   if (document.getElementById('fPriceAll')) document.getElementById('fPriceAll').value = data.pricead_all || '';
-  if (document.getElementById('fCurrency')) document.getElementById('fCurrency').value = data.currency || userCurrencyPrimary || 'RUB';
+  if (document.getElementById('fCurrency')) document.getElementById('fCurrency').value = data.currency || 'RUB';
+
+  updatePriceLabels();
 
   const title = document.getElementById('manageFormTitle');
   if (title) title.textContent = '✏️ Редактировать канал';
@@ -736,29 +789,33 @@ async function deleteChannel(id, name) {
     method: 'DELETE',
     body: JSON.stringify({ user_id: user?.id })
   });
-  if (result) {
+  if (result && !result.__error) {
     showToast('🗑 Канал удалён', 'success');
+    // Сбрасываем кэш сеток чтобы при следующем открытии они обновились
+    _allUserNetworks = [];
     renderManagePage();
     loadStats();
+  } else {
+    showToast(`❌ ${result?.error || 'Ошибка удаления'}`, 'error');
   }
 }
 
 function resetForm() {
   editingChannelId = null;
-  if (document.getElementById('fUsname'))   document.getElementById('fUsname').value   = '';
-  if (document.getElementById('fCategory')) document.getElementById('fCategory').value  = '';
-  if (document.getElementById('fPrice24'))  document.getElementById('fPrice24').value   = '';
-  if (document.getElementById('fPrice48'))  document.getElementById('fPrice48').value   = '';
-  if (document.getElementById('fPrice72'))  document.getElementById('fPrice72').value   = '';
-  if (document.getElementById('fPriceAll')) document.getElementById('fPriceAll').value  = '';
-  if (document.getElementById('fCurrency')) document.getElementById('fCurrency').value  = userCurrencyPrimary || 'RUB';
+  ['fUsname','fCategory','fPrice24','fPrice48','fPrice72','fPriceAll'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const fCur = document.getElementById('fCurrency');
+  if (fCur) fCur.value = 'RUB';
 
   const title     = document.getElementById('manageFormTitle');
   const submitBtn = document.getElementById('formSubmitBtn');
   const cancelBtn = document.getElementById('formCancelBtn');
-  if (title)     title.textContent          = '➕ Добавить канал';
-  if (submitBtn) submitBtn.textContent      = '➕ Добавить';
-  if (cancelBtn) cancelBtn.style.display   = 'none';
+  if (title)     title.textContent     = '➕ Добавить канал';
+  if (submitBtn) submitBtn.textContent = '➕ Добавить';
+  if (cancelBtn) cancelBtn.style.display = 'none';
+  updatePriceLabels();
 }
 
 // ── Collab settings ───────────────────────────────────────────────────────────
@@ -773,7 +830,7 @@ async function renderCollabSettings() {
   }
 
   const data = await apiFetch(`/user/${user.id}/channels`);
-  if (!data || data.length === 0) {
+  if (!data || data.__error || data.length === 0) {
     list.innerHTML = '<div class="empty-state" style="padding:20px"><div class="empty-title" style="font-size:13px">Нет каналов</div></div>';
     return;
   }
@@ -818,7 +875,7 @@ async function toggleCollab(channelId, el) {
     body: JSON.stringify({ collab: newVal, user_id: user?.id }),
   });
 
-  if (result) {
+  if (result && !result.__error) {
     showToast(newVal ? '✅ ВП включён' : '❌ ВП выключен', newVal ? 'success' : '');
     const ch = CHANNELS.find(c => c.id === channelId);
     if (ch) ch.collab = newVal;
@@ -828,8 +885,6 @@ async function toggleCollab(channelId, el) {
 }
 
 // ── SETTINGS — Валюта ─────────────────────────────────────────────────────────
-
-// Временное состояние выбора в настройках
 let _tempPrimary = 'RUB';
 let _tempExtras  = [];
 
@@ -839,10 +894,9 @@ async function renderCurrencySettings() {
 
   const user = tg?.initDataUnsafe?.user;
 
-  // Загрузить с сервера
   if (user?.id) {
     const data = await apiFetch(`/users/${user.id}/currency`);
-    if (data) {
+    if (data && !data.__error) {
       userCurrencyPrimary = data.currency_primary || 'RUB';
       userCurrencyExtra   = Array.isArray(data.currency_extra) ? data.currency_extra : [];
     }
@@ -896,19 +950,15 @@ function renderCurrencySettingsUI(block) {
     </div>
   `;
 
-  // ── Event delegation — надёжно работает в Telegram WebApp ────────────────
   block.addEventListener('click', _onCurrencyClick);
 }
 
-// Единый обработчик для всего блока настроек валюты
 function _onCurrencyClick(e) {
-  // Кнопка «Сохранить»
   if (e.target.closest('#saveCurrBtn')) {
     saveCurrencySettings();
     return;
   }
 
-  // Клик по опции (или любому её дочернему элементу)
   const option = e.target.closest('.currency-option[data-action]');
   if (!option) return;
 
@@ -928,7 +978,6 @@ function _onCurrencyClick(e) {
 
   if (tg) tg.HapticFeedback?.impactOccurred('light');
 
-  // Перерисовываем блок: сначала снимаем старый listener, потом рисуем заново
   const block = document.getElementById('currencySettingsBlock');
   if (block) {
     block.removeEventListener('click', _onCurrencyClick);
@@ -951,7 +1000,7 @@ async function saveCurrencySettings() {
     }),
   });
 
-  if (result) {
+  if (result && !result.__error) {
     userCurrencyPrimary = _tempPrimary;
     userCurrencyExtra   = _tempExtras;
     showToast('✅ Валюты сохранены!', 'success');
@@ -959,7 +1008,320 @@ async function saveCurrencySettings() {
   }
 }
 
-// ── Settings ──────────────────────────────────────────────────────────────────
+// ── SETTINGS — Сетки каналов ──────────────────────────────────────────────────
+let _networks = [];
+let _editingNetworkId = null;
+let _networkChannelPickerOpen = false;
+
+async function renderNetworkSettings() {
+  const user = tg?.initDataUnsafe?.user;
+  const block = document.getElementById('networkSettingsBlock');
+  if (!block) return;
+
+  if (!user?.id) {
+    block.innerHTML = '<div class="empty-state" style="padding:20px"><div class="empty-title" style="font-size:13px">Войдите через бота</div></div>';
+    return;
+  }
+
+  block.innerHTML = '<div style="padding:12px;color:var(--text3);font-size:13px">Загрузка…</div>';
+
+  const nets = await apiFetch(`/user/${user.id}/networks`);
+  _networks = (nets && !nets.__error) ? nets : [];
+
+  renderNetworkSettingsUI();
+}
+
+function renderNetworkSettingsUI() {
+  const block = document.getElementById('networkSettingsBlock');
+  if (!block) return;
+
+  block.innerHTML = `
+    <div class="settings-section" style="margin-bottom:0">
+      <button class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:12px"
+              onclick="openNetworkEditor(null)">
+        ➕ Создать сетку каналов
+      </button>
+      ${_networks.length === 0 ? '<div style="padding:8px;color:var(--text3);font-size:13px;text-align:center">Сеток пока нет</div>' : ''}
+      ${_networks.map(net => `
+        <div class="manage-ch-item" style="margin-bottom:10px">
+          <div class="manage-ch-info" style="flex:1">
+            <div class="manage-ch-name">🗂 ${net.name}</div>
+            <div class="manage-ch-meta">${(net.channels||[]).length} каналов</div>
+            <div class="manage-ch-prices">
+              ${(net.channels||[]).map(c => `
+                <span class="tag" style="display:inline-flex;align-items:center;gap:4px">
+                  ${c.avatar_url ? `<img src="${c.avatar_url}" style="width:14px;height:14px;border-radius:3px;object-fit:cover">` : '📢'}
+                  @${c.usname}
+                </span>`).join('')}
+            </div>
+          </div>
+          <div class="manage-ch-btns">
+            <button class="ch-btn ch-btn-ghost" onclick="openNetworkEditor(${net.id})">✏️</button>
+            <button class="ch-btn ch-btn-danger" onclick="deleteNetwork(${net.id}, '${net.name.replace(/'/g,"\\'")}')">🗑</button>
+          </div>
+        </div>`).join('')}
+    </div>
+  `;
+}
+
+// Открыть редактор сетки (null = создать новую)
+async function openNetworkEditor(netId) {
+  const user = tg?.initDataUnsafe?.user;
+  if (!user?.id) { showToast('⚠️ Войдите через бота', 'error'); return; }
+
+  _editingNetworkId = netId;
+
+  const net = netId ? _networks.find(n => n.id === netId) : null;
+
+  // Загрузить каналы пользователя
+  const userChannels = await apiFetch(`/user/${user.id}/channels`);
+  const myChannels = (userChannels && !userChannels.__error) ? userChannels : [];
+
+  const currentChannels = net ? (net.channels || []) : [];
+
+  const block = document.getElementById('networkSettingsBlock');
+  block.innerHTML = `
+    <div class="manage-form-card" style="margin-bottom:0">
+      <div class="manage-form-title">${netId ? '✏️ Редактировать сетку' : '➕ Создать сетку'}</div>
+      <div class="form-group">
+        <label class="form-label">Название сетки</label>
+        <input class="form-input" id="networkNameInput" placeholder="Моя сетка" value="${net?.name || ''}">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Каналы в сетке</label>
+        <div id="networkChannelsList" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+          ${currentChannels.map(c => `
+            <div class="tag" style="display:inline-flex;align-items:center;gap:5px;padding:5px 8px;cursor:default">
+              ${c.avatar_url ? `<img src="${c.avatar_url}" style="width:14px;height:14px;border-radius:3px;object-fit:cover">` : '📢'}
+              @${c.usname}
+              ${netId ? `<span style="cursor:pointer;color:var(--danger);margin-left:2px"
+                onclick="removeChannelFromNetwork(${netId},${c.id})">✕</span>` : ''}
+            </div>`).join('')}
+          ${currentChannels.length === 0 ? '<span style="color:var(--text3);font-size:13px">Нет каналов</span>' : ''}
+        </div>
+
+        <div class="form-label" style="margin-bottom:6px">Добавить канал:</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px" id="networkChannelPicker">
+          ${myChannels
+            .filter(c => !currentChannels.find(cc => cc.id === c.id))
+            .map(c => `
+              <div class="tag" style="cursor:pointer;padding:6px 10px;display:inline-flex;align-items:center;gap:5px"
+                   onclick="addChannelToNetwork(${netId || 'null'},${c.id},'${c.name.replace(/'/g,"\\'")}')">
+                ${c.avatar_url ? `<img src="${c.avatar_url}" style="width:14px;height:14px;border-radius:3px;object-fit:cover">` : '📢'}
+                + @${c.usname}
+              </div>`).join('')}
+          ${myChannels.filter(c => !currentChannels.find(cc => cc.id === c.id)).length === 0
+            ? '<span style="color:var(--text3);font-size:13px">Все ваши каналы уже в сетке</span>'
+            : ''}
+        </div>
+      </div>
+
+      <div class="form-actions" style="margin-top:12px">
+        <button class="btn btn-secondary" onclick="renderNetworkSettings()">Назад</button>
+        <button class="btn btn-primary" id="saveNetworkBtn"
+                onclick="saveNetwork()" style="flex:1;justify-content:center">
+          ${netId ? '💾 Сохранить' : '➕ Создать'}
+        </button>
+      </div>
+    </div>
+  `;
+
+  // Если создаём новую — храним временные каналы
+  window._pendingNetworkChannels = [...currentChannels.map(c => c.id)];
+}
+
+async function addChannelToNetwork(netId, channelId, channelName) {
+  const user = tg?.initDataUnsafe?.user;
+  if (!user?.id) return;
+
+  if (netId) {
+    // Уже существующая сетка — добавляем сразу
+    const result = await apiFetch(`/networks/${netId}/channels`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: user.id, channel_id: channelId }),
+    });
+    if (result && !result.__error) {
+      // Обновляем локально
+      const net = _networks.find(n => n.id === netId);
+      if (net) {
+        const ch = await apiFetch(`/channels/${channelId}`);
+        if (ch && !ch.__error) {
+          net.channels = [...(net.channels || []), ch];
+        }
+      }
+      showToast(`✅ @${channelName || channelId} добавлен в сетку`, 'success');
+      openNetworkEditor(netId);
+    } else {
+      showToast(`❌ ${result?.error || 'Ошибка'}`, 'error');
+    }
+  } else {
+    // Новая сетка — добавляем во временный список
+    if (!window._pendingNetworkChannels.includes(channelId)) {
+      window._pendingNetworkChannels.push(channelId);
+    }
+    openNetworkEditorWithPending();
+  }
+}
+
+async function removeChannelFromNetwork(netId, channelId) {
+  const user = tg?.initDataUnsafe?.user;
+  if (!user?.id) return;
+
+  const result = await apiFetch(`/networks/${netId}/channels/${channelId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ user_id: user.id }),
+  });
+
+  if (result && !result.__error) {
+    const net = _networks.find(n => n.id === netId);
+    if (net) net.channels = (net.channels || []).filter(c => c.id !== channelId);
+    showToast('🗑 Канал удалён из сетки', 'success');
+    openNetworkEditor(netId);
+  } else {
+    showToast(`❌ ${result?.error || 'Ошибка'}`, 'error');
+  }
+}
+
+// Для новой сетки — перерисовать редактор с учётом pending каналов
+async function openNetworkEditorWithPending() {
+  const user = tg?.initDataUnsafe?.user;
+  if (!user?.id) return;
+
+  const userChannels = await apiFetch(`/user/${user.id}/channels`);
+  const myChannels = (userChannels && !userChannels.__error) ? userChannels : [];
+
+  const pendingIds = window._pendingNetworkChannels || [];
+  const currentChannels = myChannels.filter(c => pendingIds.includes(c.id));
+
+  const block = document.getElementById('networkSettingsBlock');
+  const nameVal = document.getElementById('networkNameInput')?.value || '';
+
+  block.innerHTML = `
+    <div class="manage-form-card" style="margin-bottom:0">
+      <div class="manage-form-title">➕ Создать сетку</div>
+      <div class="form-group">
+        <label class="form-label">Название сетки</label>
+        <input class="form-input" id="networkNameInput" placeholder="Моя сетка" value="${nameVal}">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Каналы в сетке</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+          ${currentChannels.map(c => `
+            <div class="tag" style="display:inline-flex;align-items:center;gap:5px;padding:5px 8px">
+              ${c.avatar_url ? `<img src="${c.avatar_url}" style="width:14px;height:14px;border-radius:3px;object-fit:cover">` : '📢'}
+              @${c.usname}
+              <span style="cursor:pointer;color:var(--danger);margin-left:2px"
+                onclick="removePendingChannel(${c.id})">✕</span>
+            </div>`).join('')}
+          ${currentChannels.length === 0 ? '<span style="color:var(--text3);font-size:13px">Нет каналов</span>' : ''}
+        </div>
+
+        <div class="form-label" style="margin-bottom:6px">Добавить канал:</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${myChannels
+            .filter(c => !pendingIds.includes(c.id))
+            .map(c => `
+              <div class="tag" style="cursor:pointer;padding:6px 10px;display:inline-flex;align-items:center;gap:5px"
+                   onclick="addChannelToNetwork(null,${c.id},'${c.name.replace(/'/g,"\\'")}')">
+                ${c.avatar_url ? `<img src="${c.avatar_url}" style="width:14px;height:14px;border-radius:3px;object-fit:cover">` : '📢'}
+                + @${c.usname}
+              </div>`).join('')}
+          ${myChannels.filter(c => !pendingIds.includes(c.id)).length === 0
+            ? '<span style="color:var(--text3);font-size:13px">Все ваши каналы уже добавлены</span>'
+            : ''}
+        </div>
+      </div>
+
+      <div class="form-actions" style="margin-top:12px">
+        <button class="btn btn-secondary" onclick="renderNetworkSettings()">Назад</button>
+        <button class="btn btn-primary" onclick="saveNetwork()" style="flex:1;justify-content:center">
+          ➕ Создать
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function removePendingChannel(channelId) {
+  window._pendingNetworkChannels = (window._pendingNetworkChannels || []).filter(id => id !== channelId);
+  openNetworkEditorWithPending();
+}
+
+async function saveNetwork() {
+  const user = tg?.initDataUnsafe?.user;
+  if (!user?.id) { showToast('⚠️ Войдите через бота', 'error'); return; }
+
+  const name = document.getElementById('networkNameInput')?.value.trim() || 'Моя сетка';
+
+  if (_editingNetworkId) {
+    // Обновить название
+    const result = await apiFetch(`/networks/${_editingNetworkId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ user_id: user.id, name }),
+    });
+    if (result && !result.__error) {
+      const net = _networks.find(n => n.id === _editingNetworkId);
+      if (net) net.name = name;
+      showToast('✅ Сетка обновлена!', 'success');
+      _allUserNetworks = []; // сбрасываем поисковый кэш
+    } else {
+      showToast(`❌ ${result?.error || 'Ошибка'}`, 'error');
+    }
+  } else {
+    // Создать новую
+    const result = await apiFetch('/networks', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: user.id, name }),
+    });
+    if (!result || result.__error) {
+      showToast(`❌ ${result?.error || 'Ошибка создания'}`, 'error');
+      return;
+    }
+
+    // Добавить pending каналы
+    const pending = window._pendingNetworkChannels || [];
+    for (const chId of pending) {
+      await apiFetch(`/networks/${result.id}/channels`, {
+        method: 'POST',
+        body: JSON.stringify({ user_id: user.id, channel_id: chId }),
+      });
+    }
+
+    // Перезагрузить сетки
+    const nets = await apiFetch(`/user/${user.id}/networks`);
+    _networks = (nets && !nets.__error) ? nets : [];
+    _allUserNetworks = [];
+
+    showToast('✅ Сетка создана!', 'success');
+    window._pendingNetworkChannels = [];
+  }
+
+  renderNetworkSettings();
+}
+
+async function deleteNetwork(netId, name) {
+  if (!confirm(`Удалить сетку "${name}"?`)) return;
+  const user = tg?.initDataUnsafe?.user;
+  if (!user?.id) return;
+
+  const result = await apiFetch(`/networks/${netId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ user_id: user.id }),
+  });
+
+  if (result && !result.__error) {
+    _networks = _networks.filter(n => n.id !== netId);
+    _allUserNetworks = [];
+    showToast('🗑 Сетка удалена', 'success');
+    renderNetworkSettingsUI();
+  } else {
+    showToast(`❌ ${result?.error || 'Ошибка'}`, 'error');
+  }
+}
+
+// ── Settings init ──────────────────────────────────────────────────────────────
 const settings = JSON.parse(localStorage.getItem('adhub_settings') || '{"notifNew":true,"notifCollab":true,"notifPrice":false}');
 
 async function initSettings() {
@@ -978,7 +1340,7 @@ async function initSettings() {
 
   renderCollabSettings();
   renderCurrencySettings();
-  renderGridSettings();
+  renderNetworkSettings();
 }
 
 function toggleSetting(key) {
@@ -1032,266 +1394,6 @@ function sendDonate() {
 // ── Empty state ───────────────────────────────────────────────────────────────
 function emptyState(title, sub) {
   return `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">${title}</div><div class="empty-sub">${sub}</div></div>`;
-}
-
-// ── CHANNEL GRID (Сетки каналов) ─────────────────────────────────────────────
-
-let _userGrid = [];          // массив сеток из БД
-let _editingGridIndex = null; // null = новая, число = редактируем существующую
-let _gridDraft = null;        // { name, price_24, price_48, price_72, price_all, channels: [] }
-
-// Загружает сетки с сервера и рендерит раздел в настройках
-async function renderGridSettings() {
-  const container = document.getElementById('gridSettingsBlock');
-  if (!container) return;
-
-  const user = tg?.initDataUnsafe?.user;
-  if (!user?.id) {
-    container.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px 0">Войдите через бота</div>';
-    return;
-  }
-
-  const data = await apiFetch(`/users/${user.id}/grid`);
-  _userGrid = Array.isArray(data) ? data : [];
-
-  renderGridList(container);
-}
-
-function renderGridList(container) {
-  const hasGrid = _userGrid.length > 0;
-
-  container.innerHTML = `
-    <div class="settings-section" style="margin-bottom:12px">
-      ${_userGrid.map((g, i) => `
-        <div class="setting-item" style="flex-direction:column;align-items:flex-start;gap:6px;padding:12px">
-          <div style="display:flex;width:100%;align-items:center;justify-content:space-between">
-            <div>
-              <div class="set-title">📊 ${g.name}</div>
-              <div class="set-sub">${g.channels?.length || 0} кан${gridSuffix(g.channels?.length)}</div>
-            </div>
-            <div style="display:flex;gap:6px">
-              <button class="ch-btn ch-btn-ghost" onclick="openGridEditor(${i})">✏️</button>
-              <button class="ch-btn ch-btn-danger" onclick="deleteGrid(${i})">🗑</button>
-            </div>
-          </div>
-          ${renderGridChannelPills(g)}
-        </div>`).join('')}
-    </div>
-    <button class="btn btn-primary" style="width:100%;justify-content:center"
-            onclick="openGridEditor(null)">
-      ➕ Создать сетку каналов
-    </button>
-  `;
-}
-
-function gridSuffix(n = 0) {
-  if (n === 1) return 'ал';
-  if (n >= 2 && n <= 4) return 'ала';
-  return 'алов';
-}
-
-function renderGridChannelPills(g) {
-  if (!g.channels?.length) return '<div style="font-size:12px;color:var(--text3)">Нет каналов</div>';
-  return `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:2px">
-    ${g.channels.map(c => `<span class="tag">${c.name || '@' + c.usname}</span>`).join('')}
-  </div>`;
-}
-
-// Открывает редактор сетки (null = новая, index = редактируем)
-async function openGridEditor(index) {
-  _editingGridIndex = index;
-
-  if (index !== null && _userGrid[index]) {
-    _gridDraft = JSON.parse(JSON.stringify(_userGrid[index])); // deep copy
-  } else {
-    _gridDraft = { name: '', price_24: '', price_48: '', price_72: '', price_all: '', channels: [] };
-  }
-
-  // Загружаем каналы пользователя для добавления в сетку
-  const user = tg?.initDataUnsafe?.user;
-  let myChannels = [];
-  if (user?.id) {
-    const data = await apiFetch(`/user/${user.id}/channels`);
-    myChannels = Array.isArray(data) ? data : [];
-  }
-
-  const container = document.getElementById('gridSettingsBlock');
-  if (!container) return;
-
-  const sym = getCurrSymbol(userCurrencyPrimary);
-  const isEdit = index !== null;
-
-  container.innerHTML = `
-    <div class="manage-form-card" style="margin-bottom:16px">
-      <div class="manage-form-title">${isEdit ? '✏️ Редактировать сетку' : '➕ Новая сетка каналов'}</div>
-
-      <div class="form-group">
-        <label class="form-label">Название сетки *</label>
-        <input class="form-input" id="gName" placeholder="Моя топ-сетка" value="${_gridDraft.name}">
-      </div>
-
-      <div class="form-hint" style="font-size:11px;color:var(--text3);margin:-4px 0 8px">
-        💡 Укажите цены для всей сетки или оставьте пустыми. Введите <strong>-</strong> если недоступно.
-      </div>
-
-      <div class="form-row">
-        <div class="form-group" style="flex:1">
-          <label class="form-label">24ч (${sym})</label>
-          <input class="form-input" id="gPrice24" placeholder="500 или -" value="${_gridDraft.price_24 || ''}">
-        </div>
-        <div class="form-group" style="flex:1">
-          <label class="form-label">48ч (${sym})</label>
-          <input class="form-input" id="gPrice48" placeholder="900 или -" value="${_gridDraft.price_48 || ''}">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group" style="flex:1">
-          <label class="form-label">72ч (${sym})</label>
-          <input class="form-input" id="gPrice72" placeholder="1200 или -" value="${_gridDraft.price_72 || ''}">
-        </div>
-        <div class="form-group" style="flex:1">
-          <label class="form-label">Навсегда (${sym})</label>
-          <input class="form-input" id="gPriceAll" placeholder="2000 или -" value="${_gridDraft.price_all || ''}">
-        </div>
-      </div>
-
-      <div class="form-label" style="margin-bottom:8px">Каналы в сетке</div>
-      <div id="gridChannelList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
-        ${renderGridEditorChannels(_gridDraft.channels)}
-      </div>
-
-      ${myChannels.length > 0 ? `
-        <div class="form-label" style="margin:10px 0 6px;color:var(--text3)">➕ Добавить канал</div>
-        <div style="display:flex;flex-direction:column;gap:5px" id="gridAddList">
-          ${myChannels.map(ch => {
-            const alreadyIn = _gridDraft.channels.some(c => c.id === ch.id);
-            return `<div class="manage-ch-item" style="cursor:pointer;${alreadyIn ? 'opacity:.4;pointer-events:none' : ''}"
-                         onclick="gridAddChannel(${ch.id}, '${ch.name.replace(/'/g,"\\'")}', '@${ch.usname}')">
-              <div class="manage-ch-info">
-                <div class="manage-ch-name">${ch.name}</div>
-                <div class="manage-ch-meta">@${ch.usname} · ${fmt(ch.subscribers || 0)} подп.</div>
-              </div>
-              <div>${alreadyIn ? '✅' : '＋'}</div>
-            </div>`;
-          }).join('')}
-        </div>
-      ` : '<div style="color:var(--text3);font-size:13px">Нет доступных каналов. Сначала добавьте каналы в разделе «Каналы».</div>'}
-
-      <div class="form-actions" style="margin-top:16px">
-        <button class="btn btn-secondary" onclick="renderGridSettings()">Отмена</button>
-        <button class="btn btn-primary" style="flex:1;justify-content:center" onclick="saveGrid()">
-          💾 Сохранить сетку
-        </button>
-      </div>
-    </div>
-  `;
-
-  if (tg) tg.HapticFeedback?.impactOccurred('light');
-}
-
-function renderGridEditorChannels(channels) {
-  if (!channels?.length) return '<div style="font-size:12px;color:var(--text3);padding:4px 0">Пока нет каналов</div>';
-  return channels.map((c, i) => `
-    <div class="manage-ch-item" style="padding:8px 10px">
-      <div class="manage-ch-info">
-        <div class="manage-ch-name">${c.name}</div>
-        <div class="manage-ch-meta">${c.usname}</div>
-      </div>
-      <button class="ch-btn ch-btn-danger" onclick="gridRemoveChannel(${i})">✕</button>
-    </div>`).join('');
-}
-
-function gridAddChannel(id, name, usname) {
-  if (_gridDraft.channels.some(c => c.id === id)) return;
-  _gridDraft.channels.push({ id, name, usname });
-  // Перерисовываем только список каналов в форме без полного перезапуска редактора
-  const el = document.getElementById('gridChannelList');
-  if (el) el.innerHTML = renderGridEditorChannels(_gridDraft.channels);
-  // Скрываем кнопку добавления
-  document.querySelectorAll('#gridAddList .manage-ch-item').forEach(item => {
-    if (item.getAttribute('onclick')?.includes(`gridAddChannel(${id},`)) {
-      item.style.opacity = '.4';
-      item.style.pointerEvents = 'none';
-      item.querySelector('div:last-child').textContent = '✅';
-    }
-  });
-  if (tg) tg.HapticFeedback?.impactOccurred('light');
-}
-
-function gridRemoveChannel(index) {
-  const removed = _gridDraft.channels.splice(index, 1)[0];
-  const el = document.getElementById('gridChannelList');
-  if (el) el.innerHTML = renderGridEditorChannels(_gridDraft.channels);
-  // Разблокируем кнопку добавления
-  if (removed) {
-    document.querySelectorAll('#gridAddList .manage-ch-item').forEach(item => {
-      if (item.getAttribute('onclick')?.includes(`gridAddChannel(${removed.id},`)) {
-        item.style.opacity = '1';
-        item.style.pointerEvents = 'auto';
-        item.querySelector('div:last-child').textContent = '＋';
-      }
-    });
-  }
-  if (tg) tg.HapticFeedback?.impactOccurred('light');
-}
-
-async function saveGrid() {
-  const user = tg?.initDataUnsafe?.user;
-  if (!user?.id) { showToast('⚠️ Войдите через Telegram', 'error'); return; }
-
-  const name    = document.getElementById('gName')?.value.trim();
-  const price24 = document.getElementById('gPrice24')?.value.trim();
-  const price48 = document.getElementById('gPrice48')?.value.trim();
-  const price72 = document.getElementById('gPrice72')?.value.trim();
-  const priceAll= document.getElementById('gPriceAll')?.value.trim();
-
-  if (!name) { showToast('⚠️ Введите название сетки', 'error'); return; }
-
-  _gridDraft.name      = name;
-  _gridDraft.price_24  = price24  || null;
-  _gridDraft.price_48  = price48  || null;
-  _gridDraft.price_72  = price72  || null;
-  _gridDraft.price_all = priceAll || null;
-
-  const newGrid = [..._userGrid];
-  if (_editingGridIndex !== null) {
-    newGrid[_editingGridIndex] = _gridDraft;
-  } else {
-    newGrid.push(_gridDraft);
-  }
-
-  const result = await apiFetch(`/users/${user.id}/grid`, {
-    method: 'PUT',
-    body: JSON.stringify({ grid: newGrid }),
-  });
-
-  if (result?.ok) {
-    _userGrid = newGrid;
-    showToast(_editingGridIndex !== null ? '✅ Сетка обновлена!' : '✅ Сетка создана!', 'success');
-    if (tg) tg.HapticFeedback?.notificationOccurred('success');
-    renderGridSettings();
-  }
-}
-
-async function deleteGrid(index) {
-  const g = _userGrid[index];
-  if (!g) return;
-  if (!confirm(`Удалить сетку «${g.name}»?`)) return;
-
-  const user = tg?.initDataUnsafe?.user;
-  const newGrid = _userGrid.filter((_, i) => i !== index);
-
-  const result = await apiFetch(`/users/${user.id}/grid`, {
-    method: 'PUT',
-    body: JSON.stringify({ grid: newGrid }),
-  });
-
-  if (result?.ok) {
-    _userGrid = newGrid;
-    showToast('🗑 Сетка удалена', 'success');
-    const container = document.getElementById('gridSettingsBlock');
-    if (container) renderGridList(container);
-  }
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
