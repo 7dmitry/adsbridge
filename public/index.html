@@ -150,17 +150,19 @@
           </div>
         </div>
 
-        <!-- Поиск по сеткам -->
-        <div class="filter-group" style="margin-bottom:0">
-          <div class="filter-label">🗂 Поиск по сеткам каналов</div>
-          <div class="search-box" style="margin-top:6px;margin-bottom:0">
-            <span class="search-icon">🔍</span>
-            <input class="search-input" id="networkSearch" placeholder="Название сетки или канала…" oninput="doSearch()">
-          </div>
-          <div id="networkSearchResults"></div>
-        </div>
-
       </div>
+
+      <!-- Поиск по сеткам — отдельный блок вне фильтров -->
+      <div class="network-search-wrap">
+        <div class="filter-label" style="margin-bottom:6px">🗂 Поиск по сеткам каналов</div>
+        <div class="search-box" style="margin-bottom:0">
+          <span class="search-icon">🗂</span>
+          <input class="search-input" id="networkSearch" placeholder="Название сетки или @канала…" oninput="onNetworkSearch()">
+        </div>
+      </div>
+
+      <!-- Результаты поиска по сеткам — рендерятся здесь отдельно -->
+      <div id="networkSearchResults"></div>
 
       <div class="search-results-info">
         <span id="resultsInfo">Загрузка…</span>
@@ -256,16 +258,16 @@
         </div>
       </div>
 
+      <p class="section-title">🗂 Сетки каналов</p>
+      <div id="networkSettingsBlock">
+        <div style="padding:12px;color:var(--text3);font-size:13px">Загрузка…</div>
+      </div>
+
       <p class="section-title">Мои каналы</p>
       <div id="collabSettingsList">
         <div class="empty-state" style="padding:20px">
           <div class="empty-title" style="font-size:13px">Загрузка каналов…</div>
         </div>
-      </div>
-
-      <p class="section-title">🗂 Сетки каналов</p>
-      <div id="networkSettingsBlock">
-        <div style="padding:12px;color:var(--text3);font-size:13px">Загрузка…</div>
       </div>
 
       <p class="section-title">Валюта отображения</p>
@@ -349,6 +351,14 @@
   <div class="modal" id="modal">
     <div class="modal-handle"></div>
     <div class="modal-content" id="modalContent"></div>
+  </div>
+</div>
+
+<!-- ── Modal (сетка каналов) ──────────────────────────────────────────────── -->
+<div class="modal-overlay" id="networkModalOverlay" onclick="closeNetworkModal(event)">
+  <div class="modal" id="networkModal">
+    <div class="modal-handle"></div>
+    <div class="modal-content" id="networkModalContent"></div>
   </div>
 </div>
 

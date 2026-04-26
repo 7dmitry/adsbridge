@@ -3,6 +3,7 @@
 // git add .
 // git commit -m "fix db connection"
 // git push
+
 const tg = window.Telegram?.WebApp;
 if (tg) {
   tg.ready();
@@ -258,7 +259,6 @@ async function doSearch() {
   const subsMax  = parseInt(document.getElementById('subsMax')?.value)    || Infinity;
   const priceMin = parseFloat(document.getElementById('priceMin')?.value) || 0;
   const priceMax = parseFloat(document.getElementById('priceMax')?.value) || Infinity;
-  const networkSearch = document.getElementById('networkSearch')?.value.toLowerCase().trim() || '';
 
   let data = CHANNELS.filter(c => {
     if (currentFcat !== 'all' && c.cat !== currentFcat) return false;
@@ -300,21 +300,30 @@ async function doSearch() {
   if (info) {
     info.textContent = `Найдено ${data.length} кан${data.length===1?'ал':data.length<5?'ала':'алов'}`;
   }
-
-  // Поиск по сеткам
-  if (networkSearch) {
-    renderNetworkSearchResults(networkSearch);
-  } else {
-    const nr = document.getElementById('networkSearchResults');
-    if (nr) nr.innerHTML = '';
-  }
 }
 
 let _allUserNetworks = [];
 
+// Отдельный обработчик для поля поиска сеток
+async function onNetworkSearch() {
+  const q = document.getElementById('networkSearch')?.value.toLowerCase().trim() || '';
+  const nr = document.getElementById('networkSearchResults');
+  if (!nr) return;
+  if (!q) { nr.innerHTML = ''; return; }
+  await renderNetworkSearchResults(q);
+}
+
 async function renderNetworkSearchResults(q) {
   const user = tg?.initDataUnsafe?.user;
-  if (!user?.id) return;
+  const nr = document.getElementById('networkSearchResults');
+  if (!nr) return;
+
+  if (!user?.id) {
+    nr.innerHTML = `<div class="net-empty">Войдите через бота для поиска по сеткам</div>`;
+    return;
+  }
+
+  nr.innerHTML = `<div class="net-empty">Ищем…</div>`;
 
   if (_allUserNetworks.length === 0) {
     const nets = await apiFetch(`/user/${user.id}/networks`);
@@ -323,31 +332,142 @@ async function renderNetworkSearchResults(q) {
 
   const matched = _allUserNetworks.filter(n =>
     n.name.toLowerCase().includes(q) ||
-    (n.channels || []).some(c => c.name.toLowerCase().includes(q) || c.usname.toLowerCase().includes(q))
+    (n.channels || []).some(c =>
+      c.name.toLowerCase().includes(q) || c.usname.toLowerCase().includes(q)
+    )
   );
 
-  const nr = document.getElementById('networkSearchResults');
-  if (!nr) return;
-
   if (matched.length === 0) {
-    nr.innerHTML = `<div class="filter-label" style="margin-top:12px;color:var(--text3)">Сетки не найдены по запросу «${q}»</div>`;
+    nr.innerHTML = `<div class="net-empty">Сетки не найдены по запросу «${q}»</div>`;
     return;
   }
 
   nr.innerHTML = `
-    <div class="filter-label" style="margin-top:12px">🗂 Найденные сетки</div>
-    ${matched.map(n => `
-      <div class="manage-ch-item" style="margin-bottom:8px">
-        <div class="manage-ch-info">
-          <div class="manage-ch-name">🗂 ${n.name}</div>
-          <div class="manage-ch-meta">${(n.channels||[]).length} каналов</div>
-          <div class="manage-ch-prices">
-            ${(n.channels||[]).slice(0,3).map(c => `<span class="tag">@${c.usname}</span>`).join('')}
-            ${(n.channels||[]).length > 3 ? `<span class="tag">+${n.channels.length - 3}</span>` : ''}
-          </div>
-        </div>
-      </div>`).join('')}
+    <div class="filter-label" style="margin:10px 0 8px">🗂 Найденные сетки (${matched.length})</div>
+    <div class="channel-list" style="gap:10px">
+      ${matched.map(n => buildNetworkCard(n)).join('')}
+    </div>
   `;
+}
+
+// Карточка сетки — внешне похожа на ch-card
+function buildNetworkCard(net) {
+  const channels = net.channels || [];
+  const totalSubs = channels.reduce((sum, c) => sum + (parseInt(c.subscribers) || 0), 0);
+  return `
+  <div class="ch-card" onclick="openNetworkModal(${net.id})" style="cursor:pointer">
+    <div class="ch-top">
+      <div class="ch-avatar" style="background:rgba(108,99,255,.15);display:flex;align-items:center;justify-content:center;font-size:22px">
+        🗂
+      </div>
+      <div class="ch-info">
+        <div class="ch-name-row">
+          <span class="ch-name">${net.name}</span>
+        </div>
+        <div class="ch-username" style="color:var(--text3)">Сетка каналов</div>
+        <div class="ch-tags">
+          <span class="tag">${channels.length} канал${channels.length===1?'':channels.length<5?'а':'ов'}</span>
+          <span class="tag green">👥 ${fmt(totalSubs)} подп.</span>
+        </div>
+      </div>
+    </div>
+    <div class="ch-metrics">
+      ${channels.slice(0, 3).map(c => `
+        <div class="metric" style="gap:5px">
+          ${c.avatar_url
+            ? `<img src="${c.avatar_url}" style="width:18px;height:18px;border-radius:5px;object-fit:cover" onerror="this.style.display='none'">`
+            : '<span>📢</span>'
+          }
+          <strong style="font-size:11px">@${c.usname}</strong>
+        </div>`).join('')}
+      ${channels.length > 3 ? `<div class="metric"><strong style="font-size:11px;color:var(--text3)">+${channels.length - 3}</strong></div>` : ''}
+    </div>
+    <div class="ch-bottom">
+      <div class="price-badge">📊 Всего: ${fmt(totalSubs)} подписчиков</div>
+      <div class="ch-action-btns">
+        <button class="ch-btn ch-btn-primary" onclick="event.stopPropagation();openNetworkModal(${net.id})">👁 Подробнее</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Открыть модальное окно сетки
+function openNetworkModal(netId) {
+  const net = _allUserNetworks.find(n => n.id === netId);
+  if (!net) return;
+
+  const channels = net.channels || [];
+  const totalSubs = channels.reduce((sum, c) => sum + (parseInt(c.subscribers) || 0), 0);
+
+  document.getElementById('networkModalContent').innerHTML = `
+    <div class="modal-ch-header">
+      <div class="modal-avatar" style="background:rgba(108,99,255,.18);display:flex;align-items:center;justify-content:center;font-size:32px">
+        🗂
+      </div>
+      <div>
+        <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800">
+          ${net.name}
+        </div>
+        <div style="color:var(--text3);font-size:13px;margin:3px 0">Сетка каналов</div>
+        <span class="tag">${channels.length} канал${channels.length===1?'':channels.length<5?'а':'ов'}</span>
+      </div>
+    </div>
+
+    <div class="modal-stat-grid" style="grid-template-columns:repeat(2,1fr)">
+      <div class="modal-stat">
+        <div class="modal-stat-val">${fmt(totalSubs)}</div>
+        <div class="modal-stat-key">Всего подписчиков</div>
+      </div>
+      <div class="modal-stat">
+        <div class="modal-stat-val">${channels.length}</div>
+        <div class="modal-stat-key">Каналов в сетке</div>
+      </div>
+    </div>
+
+    ${channels.length > 0 ? `
+      <div style="margin:14px 0 6px;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">
+        Каналы сетки
+      </div>
+      <div class="net-channel-list">
+        ${channels.map(c => {
+          const subs = parseInt(c.subscribers) || 0;
+          const sym  = getCurrSymbol(c.currency || 'RUB');
+          const p24  = c.pricead_24 && c.pricead_24 !== '-' ? `${c.pricead_24}${sym}/24ч` : (c.pricead_24 === '-' ? '—' : null);
+          return `
+          <div class="net-ch-row" onclick="closeNetworkModal();openModal(${c.id})">
+            <div class="net-ch-avatar">
+              ${c.avatar_url
+                ? `<img src="${c.avatar_url}" style="width:100%;height:100%;border-radius:10px;object-fit:cover" onerror="this.parentNode.innerHTML='📢'">`
+                : '📢'
+              }
+            </div>
+            <div class="net-ch-info">
+              <div class="net-ch-name">${c.name}</div>
+              <div class="net-ch-meta">@${c.usname}</div>
+            </div>
+            <div class="net-ch-right">
+              <div class="net-ch-subs">👥 ${fmt(subs)}</div>
+              ${p24 ? `<div class="net-ch-price">💰 ${p24}</div>` : ''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>` : `<div class="net-empty">Каналы не добавлены</div>`}
+
+    <div class="modal-btns">
+      <button class="modal-btn modal-btn-secondary" onclick="closeNetworkModal()">
+        Закрыть
+      </button>
+    </div>
+  `;
+
+  document.getElementById('networkModalOverlay').classList.add('open');
+  if (tg) tg.HapticFeedback?.impactOccurred('medium');
+}
+
+function closeNetworkModal(e) {
+  if (!e || e.target === document.getElementById('networkModalOverlay')) {
+    document.getElementById('networkModalOverlay').classList.remove('open');
+  }
 }
 
 function setSort(el) {

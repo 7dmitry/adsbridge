@@ -852,3 +852,102 @@ a {
   gap: 6px;
   margin-top: 6px;
 }
+
+/* ── Поиск по сеткам ─────────────────────────────────────────────────────── */
+.network-search-wrap {
+  margin: 12px 0 4px;
+  padding: 12px 14px;
+  background: var(--card2);
+  border-radius: 14px;
+  border: 1.5px solid var(--border);
+}
+
+.net-empty {
+  padding: 12px;
+  color: var(--text3);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ── Строки каналов внутри модалки сетки ─────────────────────────────────── */
+.net-channel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.net-ch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--card2);
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  cursor: pointer;
+  transition: border-color .18s, background .18s;
+}
+.net-ch-row:active {
+  background: var(--card3, rgba(255,255,255,.05));
+  border-color: var(--accent);
+}
+
+.net-ch-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--card3, rgba(108,99,255,.1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.net-ch-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.net-ch-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.net-ch-meta {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 1px;
+}
+
+.net-ch-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.net-ch-subs {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+}
+
+.net-ch-price {
+  font-size: 11px;
+  color: var(--accent2, #a78bfa);
+}
+
+/* modal-btn-secondary */
+.modal-btn-secondary {
+  background: var(--card2);
+  color: var(--text2);
+  border: 1.5px solid var(--border);
+}
