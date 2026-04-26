@@ -460,12 +460,16 @@ app.get('/api/user/:user_id/networks', async (req, res) => {
 // Создать сетку
 app.post('/api/networks', requireTgAuth, async (req, res) => {
   try {
-    const { user_id, name } = req.body;
+    const { user_id, name, pricead_24, pricead_48, pricead_72, pricead_all, currency } = req.body;
     if (!user_id) return res.status(401).json({ error: 'Не авторизован' });
 
+    const cur = VALID_CURRENCIES.includes(currency) ? currency : 'RUB';
     const result = await pool.query(
-      `INSERT INTO channel_networks (owner_id, name) VALUES ($1, $2) RETURNING *`,
-      [user_id, name || 'Моя сетка']
+      `INSERT INTO channel_networks (owner_id, name, pricead_24, pricead_48, pricead_72, pricead_all, currency)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [user_id, name || 'Моя сетка',
+       normalizePrice(pricead_24), normalizePrice(pricead_48),
+       normalizePrice(pricead_72), normalizePrice(pricead_all), cur]
     );
     res.status(201).json({ ...result.rows[0], channels: [] });
   } catch (err) {
@@ -473,20 +477,24 @@ app.post('/api/networks', requireTgAuth, async (req, res) => {
   }
 });
 
-// Обновить название сетки
+// Обновить сетку (название + цены)
 app.put('/api/networks/:id', requireTgAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { user_id, name } = req.body;
+    const { user_id, name, pricead_24, pricead_48, pricead_72, pricead_all, currency } = req.body;
     if (!user_id) return res.status(401).json({ error: 'Не авторизован' });
 
     const check = await pool.query('SELECT owner_id FROM channel_networks WHERE id = $1', [id]);
     if (check.rows.length === 0) return res.status(404).json({ error: 'Сетка не найдена' });
     if (String(check.rows[0].owner_id) !== String(user_id)) return res.status(403).json({ error: 'Нет доступа' });
 
+    const cur = VALID_CURRENCIES.includes(currency) ? currency : 'RUB';
     const result = await pool.query(
-      `UPDATE channel_networks SET name = $1 WHERE id = $2 RETURNING *`,
-      [name, id]
+      `UPDATE channel_networks
+       SET name=$1, pricead_24=$2, pricead_48=$3, pricead_72=$4, pricead_all=$5, currency=$6
+       WHERE id=$7 RETURNING *`,
+      [name, normalizePrice(pricead_24), normalizePrice(pricead_48),
+       normalizePrice(pricead_72), normalizePrice(pricead_all), cur, id]
     );
     res.json(result.rows[0]);
   } catch (err) {

@@ -140,7 +140,7 @@ function showPage(name) {
   const navEl = document.getElementById('nav-' + name);
   if (navEl) navEl.classList.add('active');
   showFavPage = false;
-  if (name === 'search')   doSearch();
+  if (name === 'search')   { doSearch(); loadAndRenderNetworks(); }
   if (name === 'home')     renderHome('all');
   if (name === 'settings') initSettings();
   if (name === 'manage')   renderManagePage();
@@ -304,30 +304,51 @@ async function doSearch() {
 
 let _allUserNetworks = [];
 
-// Отдельный обработчик для поля поиска сеток
-async function onNetworkSearch() {
-  const q = document.getElementById('networkSearch')?.value.toLowerCase().trim() || '';
-  const nr = document.getElementById('networkSearchResults');
-  if (!nr) return;
-  if (!q) { nr.innerHTML = ''; return; }
-  await renderNetworkSearchResults(q);
-}
-
-async function renderNetworkSearchResults(q) {
+// Вызывается при открытии страницы поиска — загружает и рендерит все сетки
+async function loadAndRenderNetworks() {
   const user = tg?.initDataUnsafe?.user;
   const nr = document.getElementById('networkSearchResults');
   if (!nr) return;
 
   if (!user?.id) {
-    nr.innerHTML = `<div class="net-empty">Войдите через бота для поиска по сеткам</div>`;
+    nr.innerHTML = '';
     return;
   }
 
-  nr.innerHTML = `<div class="net-empty">Ищем…</div>`;
+  nr.innerHTML = '<div class="net-empty">Загружаем сетки…</div>';
+
+  const nets = await apiFetch(`/user/${user.id}/networks`);
+  _allUserNetworks = (nets && !nets.__error) ? nets : [];
+
+  renderAllNetworkCards();
+}
+
+function renderAllNetworkCards() {
+  const nr = document.getElementById('networkSearchResults');
+  if (!nr) return;
 
   if (_allUserNetworks.length === 0) {
-    const nets = await apiFetch(`/user/${user.id}/networks`);
-    if (nets && !nets.__error) _allUserNetworks = nets;
+    nr.innerHTML = '<div class="net-empty">У вас ещё нет сеток каналов</div>';
+    return;
+  }
+
+  nr.innerHTML = `
+    <div class="filter-label" style="margin:10px 0 8px">🗂 Мои сетки каналов (${_allUserNetworks.length})</div>
+    <div class="channel-list" style="gap:10px">
+      ${_allUserNetworks.map(n => buildNetworkCard(n)).join('')}
+    </div>
+  `;
+}
+
+// Оставляем onNetworkSearch для поля ввода — теперь фильтрует уже загруженные
+function onNetworkSearch() {
+  const q = document.getElementById('networkSearch')?.value.toLowerCase().trim() || '';
+  const nr = document.getElementById('networkSearchResults');
+  if (!nr) return;
+
+  if (!q) {
+    renderAllNetworkCards();
+    return;
   }
 
   const matched = _allUserNetworks.filter(n =>
@@ -343,47 +364,66 @@ async function renderNetworkSearchResults(q) {
   }
 
   nr.innerHTML = `
-    <div class="filter-label" style="margin:10px 0 8px">🗂 Найденные сетки (${matched.length})</div>
+    <div class="filter-label" style="margin:10px 0 8px">🗂 Найдено сеток: ${matched.length}</div>
     <div class="channel-list" style="gap:10px">
       ${matched.map(n => buildNetworkCard(n)).join('')}
     </div>
   `;
 }
 
-// Карточка сетки — внешне похожа на ch-card
+// Карточка сетки — стиль ch-card, с ценами
 function buildNetworkCard(net) {
-  const channels = net.channels || [];
-  const totalSubs = channels.reduce((sum, c) => sum + (parseInt(c.subscribers) || 0), 0);
+  const channels  = net.channels || [];
+  const totalSubs = channels.reduce((s, c) => s + (parseInt(c.subscribers) || 0), 0);
+  const sym       = getCurrSymbol(net.currency || 'RUB');
+
+  const fmtP = (v, label) => {
+    if (!v) return null;
+    if (v === '-') return `<span class="tag" style="opacity:.6">${label}: —</span>`;
+    return `<span class="tag">${label}: ${v}${sym}</span>`;
+  };
+
+  const priceHtml = [
+    fmtP(net.pricead_24,  '24ч'),
+    fmtP(net.pricead_48,  '48ч'),
+    fmtP(net.pricead_72,  '72ч'),
+    fmtP(net.pricead_all, '∞'),
+  ].filter(Boolean).join('');
+
   return `
   <div class="ch-card" onclick="openNetworkModal(${net.id})" style="cursor:pointer">
     <div class="ch-top">
-      <div class="ch-avatar" style="background:rgba(108,99,255,.15);display:flex;align-items:center;justify-content:center;font-size:22px">
+      <div class="ch-avatar" style="background:rgba(108,99,255,.15);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">
         🗂
       </div>
       <div class="ch-info">
         <div class="ch-name-row">
           <span class="ch-name">${net.name}</span>
         </div>
-        <div class="ch-username" style="color:var(--text3)">Сетка каналов</div>
+        <div class="ch-username" style="color:var(--text3)">Сетка · ${sym} ${net.currency||'RUB'}</div>
         <div class="ch-tags">
           <span class="tag">${channels.length} канал${channels.length===1?'':channels.length<5?'а':'ов'}</span>
-          <span class="tag green">👥 ${fmt(totalSubs)} подп.</span>
+          <span class="tag green">👥 ${fmt(totalSubs)}</span>
         </div>
       </div>
     </div>
-    <div class="ch-metrics">
-      ${channels.slice(0, 3).map(c => `
-        <div class="metric" style="gap:5px">
+
+    ${priceHtml ? `<div class="ch-metrics" style="flex-wrap:wrap;gap:6px">${priceHtml}</div>` : ''}
+
+    <div class="ch-metrics" style="flex-wrap:wrap;gap:6px;margin-top:6px">
+      ${channels.slice(0, 4).map(c => `
+        <div class="metric" style="gap:5px;flex-shrink:0">
           ${c.avatar_url
-            ? `<img src="${c.avatar_url}" style="width:18px;height:18px;border-radius:5px;object-fit:cover" onerror="this.style.display='none'">`
-            : '<span>📢</span>'
+            ? `<img src="${c.avatar_url}" style="width:16px;height:16px;border-radius:4px;object-fit:cover" onerror="this.style.display='none'">`
+            : '<span style="font-size:14px">📢</span>'
           }
           <strong style="font-size:11px">@${c.usname}</strong>
         </div>`).join('')}
-      ${channels.length > 3 ? `<div class="metric"><strong style="font-size:11px;color:var(--text3)">+${channels.length - 3}</strong></div>` : ''}
+      ${channels.length > 4 ? `<div class="metric"><strong style="font-size:11px;color:var(--text3)">+${channels.length - 4}</strong></div>` : ''}
     </div>
-    <div class="ch-bottom">
-      <div class="price-badge">📊 Всего: ${fmt(totalSubs)} подписчиков</div>
+
+    <div class="ch-bottom" style="margin-top:10px">
+      <div class="price-badge">📊 Итого: ${fmt(totalSubs)} подп.</div>
       <div class="ch-action-btns">
         <button class="ch-btn ch-btn-primary" onclick="event.stopPropagation();openNetworkModal(${net.id})">👁 Подробнее</button>
       </div>
@@ -396,8 +436,15 @@ function openNetworkModal(netId) {
   const net = _allUserNetworks.find(n => n.id === netId);
   if (!net) return;
 
-  const channels = net.channels || [];
-  const totalSubs = channels.reduce((sum, c) => sum + (parseInt(c.subscribers) || 0), 0);
+  const channels  = net.channels || [];
+  const totalSubs = channels.reduce((s, c) => s + (parseInt(c.subscribers) || 0), 0);
+  const sym       = getCurrSymbol(net.currency || 'RUB');
+
+  const fmtP = (v) => {
+    if (!v) return '—';
+    if (v === '-') return '—';
+    return `${v}${sym}`;
+  };
 
   document.getElementById('networkModalContent').innerHTML = `
     <div class="modal-ch-header">
@@ -408,11 +455,12 @@ function openNetworkModal(netId) {
         <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800">
           ${net.name}
         </div>
-        <div style="color:var(--text3);font-size:13px;margin:3px 0">Сетка каналов</div>
+        <div style="color:var(--text3);font-size:13px;margin:3px 0">Сетка каналов · ${sym} ${net.currency||'RUB'}</div>
         <span class="tag">${channels.length} канал${channels.length===1?'':channels.length<5?'а':'ов'}</span>
       </div>
     </div>
 
+    <!-- Общая статистика -->
     <div class="modal-stat-grid" style="grid-template-columns:repeat(2,1fr)">
       <div class="modal-stat">
         <div class="modal-stat-val">${fmt(totalSubs)}</div>
@@ -424,22 +472,43 @@ function openNetworkModal(netId) {
       </div>
     </div>
 
-    ${channels.length > 0 ? `
-      <div style="margin:14px 0 6px;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">
-        Каналы сетки
+    <!-- Цены сетки -->
+    <div style="margin:0 0 14px;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">Цены рекламы в сетке</div>
+    <div class="modal-stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+      <div class="modal-stat">
+        <div class="modal-stat-val" style="font-size:15px">${fmtP(net.pricead_24)}</div>
+        <div class="modal-stat-key">24 ч</div>
       </div>
+      <div class="modal-stat">
+        <div class="modal-stat-val" style="font-size:15px">${fmtP(net.pricead_48)}</div>
+        <div class="modal-stat-key">48 ч</div>
+      </div>
+      <div class="modal-stat">
+        <div class="modal-stat-val" style="font-size:15px">${fmtP(net.pricead_72)}</div>
+        <div class="modal-stat-key">72 ч</div>
+      </div>
+      <div class="modal-stat">
+        <div class="modal-stat-val" style="font-size:15px">${fmtP(net.pricead_all)}</div>
+        <div class="modal-stat-key">Навсегда</div>
+      </div>
+    </div>
+
+    <!-- Список каналов -->
+    <div style="margin:0 0 8px;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">
+      Каналы сетки
+    </div>
+    ${channels.length > 0 ? `
       <div class="net-channel-list">
         ${channels.map(c => {
           const subs = parseInt(c.subscribers) || 0;
-          const sym  = getCurrSymbol(c.currency || 'RUB');
-          const p24  = c.pricead_24 && c.pricead_24 !== '-' ? `${c.pricead_24}${sym}/24ч` : (c.pricead_24 === '-' ? '—' : null);
+          const cSym = getCurrSymbol(c.currency || 'RUB');
+          const p24  = c.pricead_24 && c.pricead_24 !== '-' ? `${c.pricead_24}${cSym}/24ч` : null;
           return `
           <div class="net-ch-row" onclick="closeNetworkModal();openModal(${c.id})">
             <div class="net-ch-avatar">
               ${c.avatar_url
                 ? `<img src="${c.avatar_url}" style="width:100%;height:100%;border-radius:10px;object-fit:cover" onerror="this.parentNode.innerHTML='📢'">`
-                : '📢'
-              }
+                : '📢'}
             </div>
             <div class="net-ch-info">
               <div class="net-ch-name">${c.name}</div>
@@ -454,9 +523,7 @@ function openNetworkModal(netId) {
       </div>` : `<div class="net-empty">Каналы не добавлены</div>`}
 
     <div class="modal-btns">
-      <button class="modal-btn modal-btn-secondary" onclick="closeNetworkModal()">
-        Закрыть
-      </button>
+      <button class="modal-btn modal-btn-secondary" onclick="closeNetworkModal()">Закрыть</button>
     </div>
   `;
 
@@ -468,6 +535,10 @@ function closeNetworkModal(e) {
   if (!e || e.target === document.getElementById('networkModalOverlay')) {
     document.getElementById('networkModalOverlay').classList.remove('open');
   }
+}
+
+async function renderNetworkSearchResults(q) {
+  // legacy — не используется
 }
 
 function setSort(el) {
@@ -1131,7 +1202,6 @@ async function saveCurrencySettings() {
 // ── SETTINGS — Сетки каналов ──────────────────────────────────────────────────
 let _networks = [];
 let _editingNetworkId = null;
-let _networkChannelPickerOpen = false;
 
 async function renderNetworkSettings() {
   const user = tg?.initDataUnsafe?.user;
@@ -1147,6 +1217,7 @@ async function renderNetworkSettings() {
 
   const nets = await apiFetch(`/user/${user.id}/networks`);
   _networks = (nets && !nets.__error) ? nets : [];
+  _allUserNetworks = _networks; // синхронизируем кэш поиска
 
   renderNetworkSettingsUI();
 }
@@ -1156,269 +1227,249 @@ function renderNetworkSettingsUI() {
   if (!block) return;
 
   block.innerHTML = `
-    <div class="settings-section" style="margin-bottom:0">
+    <div style="margin-bottom:0">
       <button class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:12px"
               onclick="openNetworkEditor(null)">
         ➕ Создать сетку каналов
       </button>
-      ${_networks.length === 0 ? '<div style="padding:8px;color:var(--text3);font-size:13px;text-align:center">Сеток пока нет</div>' : ''}
-      ${_networks.map(net => `
-        <div class="manage-ch-item" style="margin-bottom:10px">
-          <div class="manage-ch-info" style="flex:1">
-            <div class="manage-ch-name">🗂 ${net.name}</div>
-            <div class="manage-ch-meta">${(net.channels||[]).length} каналов</div>
-            <div class="manage-ch-prices">
-              ${(net.channels||[]).map(c => `
-                <span class="tag" style="display:inline-flex;align-items:center;gap:4px">
-                  ${c.avatar_url ? `<img src="${c.avatar_url}" style="width:14px;height:14px;border-radius:3px;object-fit:cover">` : '📢'}
-                  @${c.usname}
-                </span>`).join('')}
-            </div>
-          </div>
-          <div class="manage-ch-btns">
-            <button class="ch-btn ch-btn-ghost" onclick="openNetworkEditor(${net.id})">✏️</button>
-            <button class="ch-btn ch-btn-danger" onclick="deleteNetwork(${net.id}, '${net.name.replace(/'/g,"\\'")}')">🗑</button>
-          </div>
-        </div>`).join('')}
+      ${_networks.length === 0
+        ? '<div style="padding:8px;color:var(--text3);font-size:13px;text-align:center">Сеток пока нет</div>'
+        : _networks.map(net => {
+            const sym = getCurrSymbol(net.currency || 'RUB');
+            const prices = [
+              net.pricead_24  && net.pricead_24  !== '-' ? `24ч: ${net.pricead_24}${sym}`  : net.pricead_24  === '-' ? '24ч: —' : null,
+              net.pricead_48  && net.pricead_48  !== '-' ? `48ч: ${net.pricead_48}${sym}`  : net.pricead_48  === '-' ? '48ч: —' : null,
+              net.pricead_72  && net.pricead_72  !== '-' ? `72ч: ${net.pricead_72}${sym}`  : net.pricead_72  === '-' ? '72ч: —' : null,
+              net.pricead_all && net.pricead_all !== '-' ? `∞: ${net.pricead_all}${sym}`   : net.pricead_all === '-' ? '∞: —'   : null,
+            ].filter(Boolean);
+            return `
+            <div class="manage-ch-item" style="margin-bottom:10px">
+              <div class="manage-ch-info" style="flex:1">
+                <div class="manage-ch-name">🗂 ${net.name}</div>
+                <div class="manage-ch-meta">${(net.channels||[]).length} каналов · ${sym} ${net.currency||'RUB'}</div>
+                <div class="manage-ch-prices">
+                  ${prices.map(p => `<span class="tag">${p}</span>`).join('')}
+                </div>
+                <div class="manage-ch-prices" style="margin-top:4px">
+                  ${(net.channels||[]).map(c => `
+                    <span class="tag" style="display:inline-flex;align-items:center;gap:4px">
+                      ${c.avatar_url ? `<img src="${c.avatar_url}" style="width:14px;height:14px;border-radius:3px;object-fit:cover">` : '📢'}
+                      @${c.usname}
+                    </span>`).join('')}
+                </div>
+              </div>
+              <div class="manage-ch-btns">
+                <button class="ch-btn ch-btn-ghost" onclick="openNetworkEditor(${net.id})">✏️</button>
+                <button class="ch-btn ch-btn-danger" onclick="deleteNetwork(${net.id}, '${net.name.replace(/'/g,"\\'")}')">🗑</button>
+              </div>
+            </div>`;
+          }).join('')}
     </div>
   `;
 }
 
-// Открыть редактор сетки (null = создать новую)
+// ── Редактор сетки ────────────────────────────────────────────────────────────
+// state: какие каналы выбраны (для новой сетки — pending, для существующей — live)
+let _netEditorChannels = []; // массив объектов channel из БД
+
 async function openNetworkEditor(netId) {
   const user = tg?.initDataUnsafe?.user;
   if (!user?.id) { showToast('⚠️ Войдите через бота', 'error'); return; }
 
   _editingNetworkId = netId;
-
   const net = netId ? _networks.find(n => n.id === netId) : null;
 
-  // Загрузить каналы пользователя
-  const userChannels = await apiFetch(`/user/${user.id}/channels`);
-  const myChannels = (userChannels && !userChannels.__error) ? userChannels : [];
+  // Загружаем каналы пользователя
+  const userChannelsResp = await apiFetch(`/user/${user.id}/channels`);
+  const myChannels = (userChannelsResp && !userChannelsResp.__error) ? userChannelsResp : [];
 
-  const currentChannels = net ? (net.channels || []) : [];
+  // Выбранные каналы: для существующей сетки берём из net.channels
+  _netEditorChannels = net ? [...(net.channels || [])] : [];
 
+  _renderNetworkEditorUI(net, myChannels);
+}
+
+function _renderNetworkEditorUI(net, myChannels) {
   const block = document.getElementById('networkSettingsBlock');
+  if (!block) return;
+
+  const netId = net?.id || null;
+  const sym = getCurrSymbol(document.getElementById('netCurrency')?.value || net?.currency || userCurrencyPrimary || 'RUB');
+
+  const availableChannels = myChannels.filter(c => !_netEditorChannels.find(cc => cc.id === c.id));
+
   block.innerHTML = `
     <div class="manage-form-card" style="margin-bottom:0">
       <div class="manage-form-title">${netId ? '✏️ Редактировать сетку' : '➕ Создать сетку'}</div>
+
+      <!-- Название -->
       <div class="form-group">
         <label class="form-label">Название сетки</label>
-        <input class="form-input" id="networkNameInput" placeholder="Моя сетка" value="${net?.name || ''}">
+        <input class="form-input" id="netNameInput" placeholder="Моя сетка" value="${net?.name || ''}">
       </div>
 
+      <!-- Валюта -->
+      <div class="form-group">
+        <label class="form-label">Валюта сетки</label>
+        <select class="form-input" id="netCurrency" onchange="updateNetPriceLabels()">
+          ${['RUB','KZT','TON','USD','STARS'].map(c =>
+            `<option value="${c}" ${(net?.currency||userCurrencyPrimary||'RUB')===c?'selected':''}>
+              ${getCurrSymbol(c)} ${c}
+            </option>`
+          ).join('')}
+        </select>
+      </div>
+
+      <!-- Цены -->
+      <div class="form-row">
+        <div class="form-group" style="flex:1">
+          <label class="form-label" id="netLabel24">Цена 24ч (${sym})</label>
+          <input class="form-input" id="netPrice24" placeholder="500 или -" value="${net?.pricead_24||''}">
+        </div>
+        <div class="form-group" style="flex:1">
+          <label class="form-label" id="netLabel48">Цена 48ч (${sym})</label>
+          <input class="form-input" id="netPrice48" placeholder="800 или -" value="${net?.pricead_48||''}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="flex:1">
+          <label class="form-label" id="netLabel72">Цена 72ч (${sym})</label>
+          <input class="form-input" id="netPrice72" placeholder="1200 или -" value="${net?.pricead_72||''}">
+        </div>
+        <div class="form-group" style="flex:1">
+          <label class="form-label" id="netLabelAll">Цена навсегда (${sym})</label>
+          <input class="form-input" id="netPriceAll" placeholder="2000 или -" value="${net?.pricead_all||''}">
+        </div>
+      </div>
+
+      <!-- Каналы в сетке -->
       <div class="form-group">
         <label class="form-label">Каналы в сетке</label>
-        <div id="networkChannelsList" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
-          ${currentChannels.map(c => `
-            <div class="tag" style="display:inline-flex;align-items:center;gap:5px;padding:5px 8px;cursor:default">
-              ${c.avatar_url ? `<img src="${c.avatar_url}" style="width:14px;height:14px;border-radius:3px;object-fit:cover">` : '📢'}
-              @${c.usname}
-              ${netId ? `<span style="cursor:pointer;color:var(--danger);margin-left:2px"
-                onclick="removeChannelFromNetwork(${netId},${c.id})">✕</span>` : ''}
-            </div>`).join('')}
-          ${currentChannels.length === 0 ? '<span style="color:var(--text3);font-size:13px">Нет каналов</span>' : ''}
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;min-height:28px">
+          ${_netEditorChannels.length === 0
+            ? '<span style="color:var(--text3);font-size:13px">Каналов пока нет</span>'
+            : _netEditorChannels.map(c => `
+                <div class="tag" style="display:inline-flex;align-items:center;gap:5px;padding:5px 8px">
+                  ${c.avatar_url ? `<img src="${c.avatar_url}" style="width:14px;height:14px;border-radius:3px;object-fit:cover">` : '📢'}
+                  @${c.usname}
+                  <span style="cursor:pointer;color:var(--danger);margin-left:2px;font-weight:700"
+                    onclick="netEditorRemoveChannel(${c.id})">✕</span>
+                </div>`).join('')}
         </div>
 
-        <div class="form-label" style="margin-bottom:6px">Добавить канал:</div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px" id="networkChannelPicker">
-          ${myChannels
-            .filter(c => !currentChannels.find(cc => cc.id === c.id))
-            .map(c => `
+        ${availableChannels.length > 0 ? `
+          <label class="form-label" style="margin-bottom:6px">Добавить канал:</label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${availableChannels.map(c => `
               <div class="tag" style="cursor:pointer;padding:6px 10px;display:inline-flex;align-items:center;gap:5px"
-                   onclick="addChannelToNetwork(${netId || 'null'},${c.id},'${c.name.replace(/'/g,"\\'")}')">
+                   onclick="netEditorAddChannel(${c.id})">
                 ${c.avatar_url ? `<img src="${c.avatar_url}" style="width:14px;height:14px;border-radius:3px;object-fit:cover">` : '📢'}
                 + @${c.usname}
               </div>`).join('')}
-          ${myChannels.filter(c => !currentChannels.find(cc => cc.id === c.id)).length === 0
-            ? '<span style="color:var(--text3);font-size:13px">Все ваши каналы уже в сетке</span>'
-            : ''}
-        </div>
+          </div>` : '<div style="color:var(--text3);font-size:12px">Все ваши каналы уже добавлены</div>'}
       </div>
 
-      <div class="form-actions" style="margin-top:12px">
+      <div class="form-actions" style="margin-top:4px">
         <button class="btn btn-secondary" onclick="renderNetworkSettings()">Назад</button>
-        <button class="btn btn-primary" id="saveNetworkBtn"
-                onclick="saveNetwork()" style="flex:1;justify-content:center">
+        <button class="btn btn-primary" onclick="saveNetwork()" style="flex:1;justify-content:center">
           ${netId ? '💾 Сохранить' : '➕ Создать'}
         </button>
       </div>
     </div>
   `;
 
-  // Если создаём новую — храним временные каналы
-  window._pendingNetworkChannels = [...currentChannels.map(c => c.id)];
+  // Сохраняем myChannels в замыкании для перерисовки
+  window._netEditorMyChannels = myChannels;
 }
 
-async function addChannelToNetwork(netId, channelId, channelName) {
-  const user = tg?.initDataUnsafe?.user;
-  if (!user?.id) return;
-
-  if (netId) {
-    // Уже существующая сетка — добавляем сразу
-    const result = await apiFetch(`/networks/${netId}/channels`, {
-      method: 'POST',
-      body: JSON.stringify({ user_id: user.id, channel_id: channelId }),
+function updateNetPriceLabels() {
+  const sel = document.getElementById('netCurrency');
+  if (!sel) return;
+  const sym = getCurrSymbol(sel.value);
+  [['netLabel24','Цена 24ч'],['netLabel48','Цена 48ч'],['netLabel72','Цена 72ч'],['netLabelAll','Цена навсегда']]
+    .forEach(([id, txt]) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = `${txt} (${sym})`;
     });
-    if (result && !result.__error) {
-      // Обновляем локально
-      const net = _networks.find(n => n.id === netId);
-      if (net) {
-        const ch = await apiFetch(`/channels/${channelId}`);
-        if (ch && !ch.__error) {
-          net.channels = [...(net.channels || []), ch];
-        }
-      }
-      showToast(`✅ @${channelName || channelId} добавлен в сетку`, 'success');
-      openNetworkEditor(netId);
-    } else {
-      showToast(`❌ ${result?.error || 'Ошибка'}`, 'error');
-    }
-  } else {
-    // Новая сетка — добавляем во временный список
-    if (!window._pendingNetworkChannels.includes(channelId)) {
-      window._pendingNetworkChannels.push(channelId);
-    }
-    openNetworkEditorWithPending();
-  }
 }
 
-async function removeChannelFromNetwork(netId, channelId) {
-  const user = tg?.initDataUnsafe?.user;
-  if (!user?.id) return;
-
-  const result = await apiFetch(`/networks/${netId}/channels/${channelId}`, {
-    method: 'DELETE',
-    body: JSON.stringify({ user_id: user.id }),
-  });
-
-  if (result && !result.__error) {
-    const net = _networks.find(n => n.id === netId);
-    if (net) net.channels = (net.channels || []).filter(c => c.id !== channelId);
-    showToast('🗑 Канал удалён из сетки', 'success');
-    openNetworkEditor(netId);
-  } else {
-    showToast(`❌ ${result?.error || 'Ошибка'}`, 'error');
-  }
+function netEditorAddChannel(channelId) {
+  const ch = (window._netEditorMyChannels || []).find(c => c.id === channelId);
+  if (!ch || _netEditorChannels.find(c => c.id === channelId)) return;
+  _netEditorChannels.push(ch);
+  const net = _editingNetworkId ? _networks.find(n => n.id === _editingNetworkId) : null;
+  _renderNetworkEditorUI(net, window._netEditorMyChannels || []);
+  if (tg) tg.HapticFeedback?.impactOccurred('light');
 }
 
-// Для новой сетки — перерисовать редактор с учётом pending каналов
-async function openNetworkEditorWithPending() {
-  const user = tg?.initDataUnsafe?.user;
-  if (!user?.id) return;
-
-  const userChannels = await apiFetch(`/user/${user.id}/channels`);
-  const myChannels = (userChannels && !userChannels.__error) ? userChannels : [];
-
-  const pendingIds = window._pendingNetworkChannels || [];
-  const currentChannels = myChannels.filter(c => pendingIds.includes(c.id));
-
-  const block = document.getElementById('networkSettingsBlock');
-  const nameVal = document.getElementById('networkNameInput')?.value || '';
-
-  block.innerHTML = `
-    <div class="manage-form-card" style="margin-bottom:0">
-      <div class="manage-form-title">➕ Создать сетку</div>
-      <div class="form-group">
-        <label class="form-label">Название сетки</label>
-        <input class="form-input" id="networkNameInput" placeholder="Моя сетка" value="${nameVal}">
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Каналы в сетке</label>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
-          ${currentChannels.map(c => `
-            <div class="tag" style="display:inline-flex;align-items:center;gap:5px;padding:5px 8px">
-              ${c.avatar_url ? `<img src="${c.avatar_url}" style="width:14px;height:14px;border-radius:3px;object-fit:cover">` : '📢'}
-              @${c.usname}
-              <span style="cursor:pointer;color:var(--danger);margin-left:2px"
-                onclick="removePendingChannel(${c.id})">✕</span>
-            </div>`).join('')}
-          ${currentChannels.length === 0 ? '<span style="color:var(--text3);font-size:13px">Нет каналов</span>' : ''}
-        </div>
-
-        <div class="form-label" style="margin-bottom:6px">Добавить канал:</div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px">
-          ${myChannels
-            .filter(c => !pendingIds.includes(c.id))
-            .map(c => `
-              <div class="tag" style="cursor:pointer;padding:6px 10px;display:inline-flex;align-items:center;gap:5px"
-                   onclick="addChannelToNetwork(null,${c.id},'${c.name.replace(/'/g,"\\'")}')">
-                ${c.avatar_url ? `<img src="${c.avatar_url}" style="width:14px;height:14px;border-radius:3px;object-fit:cover">` : '📢'}
-                + @${c.usname}
-              </div>`).join('')}
-          ${myChannels.filter(c => !pendingIds.includes(c.id)).length === 0
-            ? '<span style="color:var(--text3);font-size:13px">Все ваши каналы уже добавлены</span>'
-            : ''}
-        </div>
-      </div>
-
-      <div class="form-actions" style="margin-top:12px">
-        <button class="btn btn-secondary" onclick="renderNetworkSettings()">Назад</button>
-        <button class="btn btn-primary" onclick="saveNetwork()" style="flex:1;justify-content:center">
-          ➕ Создать
-        </button>
-      </div>
-    </div>
-  `;
-}
-
-function removePendingChannel(channelId) {
-  window._pendingNetworkChannels = (window._pendingNetworkChannels || []).filter(id => id !== channelId);
-  openNetworkEditorWithPending();
+function netEditorRemoveChannel(channelId) {
+  _netEditorChannels = _netEditorChannels.filter(c => c.id !== channelId);
+  const net = _editingNetworkId ? _networks.find(n => n.id === _editingNetworkId) : null;
+  _renderNetworkEditorUI(net, window._netEditorMyChannels || []);
+  if (tg) tg.HapticFeedback?.impactOccurred('light');
 }
 
 async function saveNetwork() {
   const user = tg?.initDataUnsafe?.user;
   if (!user?.id) { showToast('⚠️ Войдите через бота', 'error'); return; }
 
-  const name = document.getElementById('networkNameInput')?.value.trim() || 'Моя сетка';
+  const name     = document.getElementById('netNameInput')?.value.trim() || 'Моя сетка';
+  const currency = document.getElementById('netCurrency')?.value || 'RUB';
+  const p24      = document.getElementById('netPrice24')?.value.trim() || null;
+  const p48      = document.getElementById('netPrice48')?.value.trim() || null;
+  const p72      = document.getElementById('netPrice72')?.value.trim() || null;
+  const pAll     = document.getElementById('netPriceAll')?.value.trim() || null;
 
-  if (_editingNetworkId) {
-    // Обновить название
-    const result = await apiFetch(`/networks/${_editingNetworkId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ user_id: user.id, name }),
-    });
-    if (result && !result.__error) {
-      const net = _networks.find(n => n.id === _editingNetworkId);
-      if (net) net.name = name;
-      showToast('✅ Сетка обновлена!', 'success');
-      _allUserNetworks = []; // сбрасываем поисковый кэш
-    } else {
-      showToast(`❌ ${result?.error || 'Ошибка'}`, 'error');
-    }
-  } else {
-    // Создать новую
-    const result = await apiFetch('/networks', {
-      method: 'POST',
-      body: JSON.stringify({ user_id: user.id, name }),
-    });
-    if (!result || result.__error) {
-      showToast(`❌ ${result?.error || 'Ошибка создания'}`, 'error');
-      return;
-    }
+  const payload = { user_id: user.id, name, currency,
+    pricead_24: p24, pricead_48: p48, pricead_72: p72, pricead_all: pAll };
 
-    // Добавить pending каналы
-    const pending = window._pendingNetworkChannels || [];
-    for (const chId of pending) {
-      await apiFetch(`/networks/${result.id}/channels`, {
-        method: 'POST',
-        body: JSON.stringify({ user_id: user.id, channel_id: chId }),
+  let netId = _editingNetworkId;
+
+  if (netId) {
+    // Обновить данные сетки
+    const result = await apiFetch(`/networks/${netId}`, { method: 'PUT', body: JSON.stringify(payload) });
+    if (!result || result.__error) { showToast(`❌ ${result?.error||'Ошибка'}`, 'error'); return; }
+
+    // Синхронизировать состав каналов
+    const net = _networks.find(n => n.id === netId);
+    const oldIds = (net?.channels||[]).map(c => c.id);
+    const newIds = _netEditorChannels.map(c => c.id);
+
+    // Удалить убранные
+    for (const id of oldIds.filter(id => !newIds.includes(id))) {
+      await apiFetch(`/networks/${netId}/channels/${id}`, {
+        method: 'DELETE', body: JSON.stringify({ user_id: user.id })
+      });
+    }
+    // Добавить новые
+    for (const id of newIds.filter(id => !oldIds.includes(id))) {
+      await apiFetch(`/networks/${netId}/channels`, {
+        method: 'POST', body: JSON.stringify({ user_id: user.id, channel_id: id })
       });
     }
 
-    // Перезагрузить сетки
-    const nets = await apiFetch(`/user/${user.id}/networks`);
-    _networks = (nets && !nets.__error) ? nets : [];
-    _allUserNetworks = [];
+    showToast('✅ Сетка обновлена!', 'success');
+  } else {
+    // Создать сетку
+    const result = await apiFetch('/networks', { method: 'POST', body: JSON.stringify(payload) });
+    if (!result || result.__error) { showToast(`❌ ${result?.error||'Ошибка создания'}`, 'error'); return; }
+    netId = result.id;
 
+    // Добавить выбранные каналы
+    for (const ch of _netEditorChannels) {
+      await apiFetch(`/networks/${netId}/channels`, {
+        method: 'POST', body: JSON.stringify({ user_id: user.id, channel_id: ch.id })
+      });
+    }
     showToast('✅ Сетка создана!', 'success');
-    window._pendingNetworkChannels = [];
   }
 
-  renderNetworkSettings();
+  // Перезагрузить список сеток
+  const nets = await apiFetch(`/user/${user.id}/networks`);
+  _networks = (nets && !nets.__error) ? nets : [];
+  _allUserNetworks = _networks;
+  _netEditorChannels = [];
+  renderNetworkSettingsUI();
 }
 
 async function deleteNetwork(netId, name) {
@@ -1433,7 +1484,7 @@ async function deleteNetwork(netId, name) {
 
   if (result && !result.__error) {
     _networks = _networks.filter(n => n.id !== netId);
-    _allUserNetworks = [];
+    _allUserNetworks = _networks;
     showToast('🗑 Сетка удалена', 'success');
     renderNetworkSettingsUI();
   } else {
