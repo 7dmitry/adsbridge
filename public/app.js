@@ -1289,6 +1289,9 @@ async function openNetworkEditor(netId) {
   _editingNetworkId = netId;
   const net = netId ? _networks.find(n => n.id === netId) : null;
 
+  // Сброс state публичности — инициализируем из текущей сетки
+  window._netEditorIsPublic = net?.is_public ?? false;
+
   // Загружаем каналы пользователя
   const userChannelsResp = await apiFetch(`/user/${user.id}/channels`);
   const myChannels = (userChannelsResp && !userChannelsResp.__error) ? userChannelsResp : [];
@@ -1306,8 +1309,8 @@ function _renderNetworkEditorUI(net, myChannels) {
   const netId   = net?.id || null;
   const curSym  = getCurrSymbol(document.getElementById('netCurrency')?.value || net?.currency || userCurrencyPrimary || 'RUB');
   const curCat  = document.getElementById('netCategory')?.value || net?.category || '';
-  const curPub  = document.getElementById('netIsPublic')
-                    ? document.getElementById('netIsPublic').checked
+  const curPub  = window._netEditorIsPublic !== undefined
+                    ? window._netEditorIsPublic
                     : (net?.is_public ?? false);
 
   const availableChannels = myChannels.filter(c => !_netEditorChannels.find(cc => cc.id === c.id));
@@ -1380,10 +1383,9 @@ function _renderNetworkEditorUI(net, myChannels) {
           <div class="set-sub">Видна всем пользователям в поиске сеток</div>
         </div>
         <div class="set-right">
-          <label class="net-toggle-wrap">
-            <input type="checkbox" id="netIsPublic" ${curPub ? 'checked' : ''} style="display:none">
-            <div class="toggle ${curPub ? 'on' : ''}" onclick="this.previousElementSibling.click();this.classList.toggle('on')"></div>
-          </label>
+          <div class="toggle ${curPub ? 'on' : ''}" id="netPublicToggle"
+               onclick="window._netEditorIsPublic=!window._netEditorIsPublic;this.classList.toggle('on',window._netEditorIsPublic)">
+          </div>
         </div>
       </div>
 
@@ -1459,7 +1461,7 @@ async function saveNetwork() {
   const name      = document.getElementById('netNameInput')?.value.trim() || 'Моя сетка';
   const currency  = document.getElementById('netCurrency')?.value || 'RUB';
   const category  = document.getElementById('netCategory')?.value || null;
-  const is_public = document.getElementById('netIsPublic')?.checked ?? false;
+  const is_public = window._netEditorIsPublic ?? false;
   const p24       = document.getElementById('netPrice24')?.value.trim() || null;
   const p48       = document.getElementById('netPrice48')?.value.trim() || null;
   const p72       = document.getElementById('netPrice72')?.value.trim() || null;
@@ -1514,6 +1516,7 @@ async function saveNetwork() {
   _networks = (nets && !nets.__error) ? nets : [];
   _allUserNetworks = _networks;
   _netEditorChannels = [];
+  window._netEditorIsPublic = undefined;
   renderNetworkSettingsUI();
 }
 

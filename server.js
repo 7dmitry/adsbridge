@@ -441,9 +441,12 @@ app.get('/api/user/:user_id/networks', async (req, res) => {
     for (const net of nets.rows) {
       const channels = await pool.query(
         `SELECT c.id, c.name, c.usname, c.category, c.subscribers, c.avatar_url,
-                c.pricead_24, c.pricead_48, c.pricead_72, c.pricead_all, c.currency
+                c.pricead_24, c.pricead_48, c.pricead_72, c.pricead_all,
+                COALESCE(u.currency_primary, c.currency, 'RUB') AS currency,
+                COALESCE(u.currency_extra, '[]'::jsonb) AS currency_extra
          FROM channels c
          JOIN network_channels nc ON c.id = nc.channel_id
+         LEFT JOIN users u ON c.owner_id = u.id
          WHERE nc.network_id = $1
          ORDER BY nc.added_at`,
         [net.id]
@@ -457,13 +460,14 @@ app.get('/api/user/:user_id/networks', async (req, res) => {
   }
 });
 
-// Создать сетку
-// Все публичные сетки (для вкладки поиска — все пользователи)
+// !! ВАЖНО: /api/networks/all ДОЛЖЕН быть до /api/networks/:id
+// иначе Express трактует 'all' как :id
 app.get('/api/networks/all', async (req, res) => {
   try {
     const { category } = req.query;
-    let where = `WHERE cn.is_public = TRUE`;
     const params = [];
+    let where = `WHERE cn.is_public = TRUE`;
+
     if (category && category !== 'all' && VALID_CATEGORIES.includes(category)) {
       params.push(category);
       where += ` AND cn.category = $${params.length}`;
@@ -482,9 +486,12 @@ app.get('/api/networks/all', async (req, res) => {
     for (const net of nets.rows) {
       const channels = await pool.query(
         `SELECT c.id, c.name, c.usname, c.category, c.subscribers, c.avatar_url,
-                c.pricead_24, c.pricead_48, c.pricead_72, c.pricead_all, c.currency
+                c.pricead_24, c.pricead_48, c.pricead_72, c.pricead_all,
+                COALESCE(u2.currency_primary, c.currency, 'RUB') AS currency,
+                COALESCE(u2.currency_extra, '[]'::jsonb) AS currency_extra
          FROM channels c
          JOIN network_channels nc ON c.id = nc.channel_id
+         LEFT JOIN users u2 ON c.owner_id = u2.id
          WHERE nc.network_id = $1
          ORDER BY nc.added_at`,
         [net.id]
