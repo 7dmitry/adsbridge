@@ -1302,13 +1302,36 @@ async function openNetworkEditor(netId) {
   _renderNetworkEditorUI(net, myChannels);
 }
 
+function _saveNetFormState() {
+  return {
+    name:     document.getElementById('netNameInput')?.value  ?? null,
+    category: document.getElementById('netCategory')?.value   ?? null,
+    currency: document.getElementById('netCurrency')?.value   ?? null,
+    p24:      document.getElementById('netPrice24')?.value    ?? null,
+    p48:      document.getElementById('netPrice48')?.value    ?? null,
+    p72:      document.getElementById('netPrice72')?.value    ?? null,
+    pAll:     document.getElementById('netPriceAll')?.value   ?? null,
+  };
+}
+
 function _renderNetworkEditorUI(net, myChannels) {
   const block = document.getElementById('networkSettingsBlock');
   if (!block) return;
 
-  const netId   = net?.id || null;
-  const curSym  = getCurrSymbol(document.getElementById('netCurrency')?.value || net?.currency || userCurrencyPrimary || 'RUB');
-  const curCat  = document.getElementById('netCategory')?.value || net?.category || '';
+  // Сохраняем то что уже ввёл пользователь (если поля ещё существуют в DOM)
+  const saved = _saveNetFormState();
+
+  const netId  = net?.id || null;
+
+  // Приоритет: то что набрал юзер > данные из БД > дефолт
+  const curName = (saved.name    !== null && saved.name    !== '') ? saved.name    : (net?.name     || '');
+  const curCat  = (saved.category !== null)                        ? saved.category : (net?.category || '');
+  const curCur  = (saved.currency !== null)                        ? saved.currency : (net?.currency || userCurrencyPrimary || 'RUB');
+  const curP24  = (saved.p24  !== null) ? saved.p24  : (net?.pricead_24  || '');
+  const curP48  = (saved.p48  !== null) ? saved.p48  : (net?.pricead_48  || '');
+  const curP72  = (saved.p72  !== null) ? saved.p72  : (net?.pricead_72  || '');
+  const curPAll = (saved.pAll !== null) ? saved.pAll : (net?.pricead_all || '');
+  const curSym  = getCurrSymbol(curCur);
   const curPub  = window._netEditorIsPublic !== undefined
                     ? window._netEditorIsPublic
                     : (net?.is_public ?? false);
@@ -1322,7 +1345,7 @@ function _renderNetworkEditorUI(net, myChannels) {
       <!-- Название -->
       <div class="form-group">
         <label class="form-label">Название сетки</label>
-        <input class="form-input" id="netNameInput" placeholder="Моя сетка" value="${net?.name || ''}">
+        <input class="form-input" id="netNameInput" placeholder="Моя сетка" value="${curName}">
       </div>
 
       <!-- Категория -->
@@ -1347,7 +1370,7 @@ function _renderNetworkEditorUI(net, myChannels) {
         <label class="form-label">Валюта сетки</label>
         <select class="form-input" id="netCurrency" onchange="updateNetPriceLabels()">
           ${['RUB','KZT','TON','USD','STARS'].map(c =>
-            `<option value="${c}" ${(net?.currency||userCurrencyPrimary||'RUB')===c?'selected':''}>
+            `<option value="${c}" ${curCur===c?'selected':''}>
               ${getCurrSymbol(c)} ${c}
             </option>`
           ).join('')}
@@ -1358,21 +1381,21 @@ function _renderNetworkEditorUI(net, myChannels) {
       <div class="form-row">
         <div class="form-group" style="flex:1">
           <label class="form-label" id="netLabel24">Цена 24ч (${curSym})</label>
-          <input class="form-input" id="netPrice24" placeholder="500 или -" value="${net?.pricead_24||''}">
+          <input class="form-input" id="netPrice24" placeholder="500 или -" value="${curP24}">
         </div>
         <div class="form-group" style="flex:1">
           <label class="form-label" id="netLabel48">Цена 48ч (${curSym})</label>
-          <input class="form-input" id="netPrice48" placeholder="800 или -" value="${net?.pricead_48||''}">
+          <input class="form-input" id="netPrice48" placeholder="800 или -" value="${curP48}">
         </div>
       </div>
       <div class="form-row">
         <div class="form-group" style="flex:1">
           <label class="form-label" id="netLabel72">Цена 72ч (${curSym})</label>
-          <input class="form-input" id="netPrice72" placeholder="1200 или -" value="${net?.pricead_72||''}">
+          <input class="form-input" id="netPrice72" placeholder="1200 или -" value="${curP72}">
         </div>
         <div class="form-group" style="flex:1">
           <label class="form-label" id="netLabelAll">Цена навсегда (${curSym})</label>
-          <input class="form-input" id="netPriceAll" placeholder="2000 или -" value="${net?.pricead_all||''}">
+          <input class="form-input" id="netPriceAll" placeholder="2000 или -" value="${curPAll}">
         </div>
       </div>
 
