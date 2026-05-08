@@ -983,3 +983,21 @@ a {
   display: flex;
   align-items: center;
 }
+
+/* ── Цены внутри строки канала в модалке сетки ───────────────────────────── */
+.net-ch-prices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+/* modal-btn-primary для сетки */
+.modal-btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+}
+.modal-btn-primary:active {
+  opacity: .85;
+}

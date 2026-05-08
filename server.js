@@ -714,8 +714,10 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
       }
     }
 
-    const sym = CURRENCY_SYMBOLS[ch.currency] || '₽';
-    const formatPrice = (p) => (p && p !== '-') ? `${p}${sym}` : (p === '-' ? '—' : '—');
+    // Берём валюту владельца (owner_currency_primary), а не поле канала
+    const ownerCurrency = ch.owner_currency_primary || ch.currency || 'RUB';
+    const sym = CURRENCY_SYMBOLS[ownerCurrency] || '₽';
+    const formatPrice = (p) => (p && p !== '-') ? `${p}${sym}` : '—';
     const price24  = formatPrice(ch.pricead_24);
     const price48  = formatPrice(ch.pricead_48);
     const price72  = formatPrice(ch.pricead_72);
@@ -723,7 +725,7 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
 
     let extras = ch.owner_currency_extra;
     if (typeof extras === 'string') { try { extras = JSON.parse(extras); } catch { extras = []; } }
-    const allCurrs = [ch.currency, ...(Array.isArray(extras) ? extras.filter(c => c !== ch.currency) : [])];
+    const allCurrs = [ownerCurrency, ...(Array.isArray(extras) ? extras.filter(c => c !== ownerCurrency) : [])];
     const payStr = allCurrs.map(c => CURRENCY_SYMBOLS[c] || c).join(', ');
 
     const text =
@@ -762,6 +764,112 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
 
   } catch (err) {
     console.error('send-message error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== SEND NETWORK MESSAGE =====
+app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
+  const { user_id, network_id } = req.body;
+  if (!user_id || !network_id) {
+    return res.status(400).json({ error: 'Не хватает параметров' });
+  }
+
+  try {
+    // Данные сетки + владелец
+    const netResult = await pool.query(
+      `SELECT cn.*,
+              u.username     AS owner_username,
+              COALESCE(u.currency_primary, 'RUB') AS owner_currency_primary,
+              COALESCE(u.currency_extra,   '[]'::jsonb) AS owner_currency_extra
+       FROM channel_networks cn
+       LEFT JOIN users u ON cn.owner_id = u.id
+       WHERE cn.id = $1`,
+      [network_id]
+    );
+    const net = netResult.rows[0];
+    if (!net) return res.status(404).json({ error: 'Сетка не найдена' });
+
+    // Каналы сетки с валютой владельца
+    const chResult = await pool.query(
+      `SELECT c.id, c.name, c.usname, c.subscribers,
+              c.pricead_24, c.pricead_48, c.pricead_72, c.pricead_all,
+              COALESCE(u2.currency_primary, c.currency, 'RUB') AS currency
+       FROM channels c
+       JOIN network_channels nc ON c.id = nc.channel_id
+       LEFT JOIN users u2 ON c.owner_id = u2.id
+       WHERE nc.network_id = $1
+       ORDER BY nc.added_at`,
+      [network_id]
+    );
+    const channels = chResult.rows;
+
+    // Имя владельца для кнопки
+    const ownerUsername = net.owner_username || null;
+    if (!ownerUsername) {
+      return res.status(400).json({ error: 'У владельца сетки нет username в Telegram' });
+    }
+
+    // Валюта и символ сетки
+    const netSym = CURRENCY_SYMBOLS[net.currency || 'RUB'] || '₽';
+    const fmtP = (p) => (p && p !== '-') ? `${p}${netSym}` : '—';
+
+    // Строки по каналам
+    const chLines = channels.map(c => {
+      const cSym  = CURRENCY_SYMBOLS[c.currency || 'RUB'] || '₽';
+      const fmtC  = (p) => (p && p !== '-') ? `${p}${cSym}` : '—';
+      const subs  = c.subscribers ? `👥 ${c.subscribers}` : '';
+      return `📢 *${c.name}* (@${c.usname}) ${subs}\n` +
+             `   24ч: ${fmtC(c.pricead_24)} · 48ч: ${fmtC(c.pricead_48)} · 72ч: ${fmtC(c.pricead_72)} · ∞: ${fmtC(c.pricead_all)}`;
+    }).join('\n\n');
+
+    // Суммарные подписчики
+    const totalSubs = channels.reduce((s, c) => s + (parseInt(c.subscribers) || 0), 0);
+
+    // Допвалюты
+    let extras = net.owner_currency_extra;
+    if (typeof extras === 'string') { try { extras = JSON.parse(extras); } catch { extras = []; } }
+    const ownerCur = net.owner_currency_primary || 'RUB';
+    const allCurrs = [ownerCur, ...(Array.isArray(extras) ? extras.filter(c => c !== ownerCur) : [])];
+    const payStr = allCurrs.map(c => CURRENCY_SYMBOLS[c] || c).join(', ');
+
+    const catNames = {
+      tech:'Технологии', business:'Бизнес', finance:'Финансы', games:'Игры',
+      art:'Творчество', news:'Новости', entertainment:'Развлечения', edu:'Образование', other:'Другое'
+    };
+    const catStr = net.category ? ` · ${catNames[net.category] || net.category}` : '';
+
+    const text =
+      `🗂 *Сетка каналов: ${net.name}*${catStr}\n` +
+      `👥 Всего подписчиков: ${totalSubs}\n\n` +
+      `💰 Цена рекламы в сетке:\n` +
+      `   24ч: ${fmtP(net.pricead_24)} · 48ч: ${fmtP(net.pricead_48)}\n` +
+      `   72ч: ${fmtP(net.pricead_72)} · Навсегда: ${fmtP(net.pricead_all)}\n\n` +
+      `📋 Каналы в сетке:\n\n${chLines}\n\n` +
+      `💳 Оплата: ${payStr}\n\n` +
+      `Напишите владельцу сетки 👇`;
+
+    const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: user_id,
+        text,
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '✍️ Написать владельцу сетки', url: `https://t.me/${ownerUsername}` }
+          ]]
+        }
+      }),
+    });
+
+    const tgData = await tgRes.json();
+    if (!tgData.ok) return res.status(500).json({ error: tgData.description });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('send-network-message error:', err);
     res.status(500).json({ error: err.message });
   }
 });

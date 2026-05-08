@@ -467,6 +467,25 @@ function buildNetworkCard(net) {
   </div>`;
 }
 
+// Написать владельцу сетки
+async function contactNetwork(networkId) {
+  const user = tg?.initDataUnsafe?.user;
+  if (!user?.id) {
+    showToast('⚠️ Откройте приложение через бота', 'error');
+    return;
+  }
+  const result = await apiFetch('/send-network-message', {
+    method: 'POST',
+    body: JSON.stringify({ user_id: user.id, network_id: networkId }),
+  });
+  if (result?.ok) {
+    showToast('📩 Сообщение отправлено в бот!', 'success');
+    if (tg) tg.HapticFeedback?.notificationOccurred('success');
+  } else {
+    showToast(`❌ ${result?.error || 'Ошибка'}`, 'error');
+  }
+}
+
 // Модальное окно сетки
 function openNetworkModal(netId) {
   // Ищем в обоих источниках
@@ -481,6 +500,10 @@ function openNetworkModal(netId) {
 
   const fmtP = (v) => (!v || v === '-') ? '—' : `${v}${sym}`;
 
+  // Проверяем — это чужая сетка (показываем кнопку контакта) или своя
+  const currentUserId = tg?.initDataUnsafe?.user?.id;
+  const isOwn = net.owner_id && String(net.owner_id) === String(currentUserId);
+
   document.getElementById('networkModalContent').innerHTML = `
     <div class="modal-ch-header">
       <div class="modal-avatar" style="background:rgba(108,99,255,.18);display:flex;align-items:center;justify-content:center;font-size:32px">🗂</div>
@@ -489,18 +512,20 @@ function openNetworkModal(netId) {
           ${net.name}
           ${net.is_public ? '<span class="badge-verified" title="Публичная сетка">🌐</span>' : ''}
         </div>
-        <div style="color:var(--text3);font-size:13px;margin:3px 0">Сетка каналов · ${sym} ${net.currency||'RUB'}</div>
+        <div style="color:var(--text3);font-size:13px;margin:3px 0">Сетка каналов · ${sym} ${net.currency||'RUB'}${catName?' · '+catName:''}</div>
         <span class="tag">${channels.length} канал${channels.length===1?'':channels.length<5?'а':'ов'}</span>
         ${catName ? `<span class="tag" style="margin-left:5px">${catName}</span>` : ''}
       </div>
     </div>
 
+    <!-- Статистика -->
     <div class="modal-stat-grid" style="grid-template-columns:repeat(2,1fr)">
       <div class="modal-stat"><div class="modal-stat-val">${fmt(totalSubs)}</div><div class="modal-stat-key">Всего подписчиков</div></div>
       <div class="modal-stat"><div class="modal-stat-val">${channels.length}</div><div class="modal-stat-key">Каналов в сетке</div></div>
     </div>
 
-    <div style="margin:4px 0 8px;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">Цены рекламы</div>
+    <!-- Цены сетки -->
+    <div style="margin:4px 0 8px;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">Цены рекламы в сетке</div>
     <div class="modal-stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
       <div class="modal-stat"><div class="modal-stat-val" style="font-size:15px">${fmtP(net.pricead_24)}</div><div class="modal-stat-key">24 ч</div></div>
       <div class="modal-stat"><div class="modal-stat-val" style="font-size:15px">${fmtP(net.pricead_48)}</div><div class="modal-stat-key">48 ч</div></div>
@@ -508,13 +533,14 @@ function openNetworkModal(netId) {
       <div class="modal-stat"><div class="modal-stat-val" style="font-size:15px">${fmtP(net.pricead_all)}</div><div class="modal-stat-key">Навсегда</div></div>
     </div>
 
+    <!-- Каналы сетки -->
     <div style="margin:0 0 8px;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px">Каналы сетки</div>
     ${channels.length > 0 ? `
       <div class="net-channel-list">
         ${channels.map(c => {
           const subs = parseInt(c.subscribers)||0;
           const cSym = getCurrSymbol(c.currency||'RUB');
-          const p24  = c.pricead_24 && c.pricead_24!=='-' ? `${c.pricead_24}${cSym}/24ч` : null;
+          const fmtC = (v) => (!v || v==='-') ? '—' : `${v}${cSym}`;
           return `
           <div class="net-ch-row" onclick="closeNetworkModal();openModal(${c.id})">
             <div class="net-ch-avatar">
@@ -525,16 +551,27 @@ function openNetworkModal(netId) {
             <div class="net-ch-info">
               <div class="net-ch-name">${c.name}</div>
               <div class="net-ch-meta">@${c.usname}</div>
+              <div class="net-ch-prices">
+                ${[['24ч',c.pricead_24],['48ч',c.pricead_48],['72ч',c.pricead_72],['∞',c.pricead_all]]
+                  .filter(([,v]) => v)
+                  .map(([l,v]) => `<span class="tag" style="font-size:10px;padding:2px 6px">${l}: ${fmtC(v)}</span>`)
+                  .join('')}
+              </div>
             </div>
             <div class="net-ch-right">
               <div class="net-ch-subs">👥 ${fmt(subs)}</div>
-              ${p24 ? `<div class="net-ch-price">💰 ${p24}</div>` : ''}
             </div>
           </div>`;
         }).join('')}
       </div>` : `<div class="net-empty">Каналы не добавлены</div>`}
 
-    <div class="modal-btns">
+    <!-- Кнопки -->
+    <div class="modal-btns" style="flex-direction:column;gap:8px">
+      ${!isOwn ? `
+        <button class="modal-btn modal-btn-primary"
+                onclick="contactNetwork(${net.id});closeNetworkModal()">
+          📩 Написать владельцу сетки
+        </button>` : ''}
       <button class="modal-btn modal-btn-secondary" onclick="closeNetworkModal()">Закрыть</button>
     </div>
   `;
