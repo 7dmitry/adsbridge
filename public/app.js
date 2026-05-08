@@ -306,6 +306,7 @@ let _allUserNetworks  = [];  // свои сетки
 let _allPublicNetworks = []; // все публичные
 let _netTab = 'my';          // 'my' | 'all'
 let _netCatFilter = 'all';
+let _netCatOpen = false;     // свёрнут/развёрнут блок категорий
 
 // Вызывается при открытии страницы поиска
 async function loadAndRenderNetworks() {
@@ -313,39 +314,52 @@ async function loadAndRenderNetworks() {
   const nr = document.getElementById('networkSearchResults');
   if (!nr) return;
 
-  // Рендерим каркас с вкладками сразу
   _renderNetworkSearchShell();
 
-  // Загружаем свои сетки
   if (user?.id) {
     const myNets = await apiFetch(`/user/${user.id}/networks`);
     _allUserNetworks = (myNets && !myNets.__error) ? myNets : [];
   }
 
-  // Загружаем публичные
   const pubNets = await apiFetch('/networks/all');
   _allPublicNetworks = (pubNets && !pubNets.__error) ? pubNets : [];
 
   _renderNetworkCards();
 }
 
+const NET_CATS = [
+  ['all','⚡ Все категории'],['tech','🖥️ Технологии'],['business','💼 Бизнес'],
+  ['finance','📈 Финансы'],['games','🎮 Игры'],['art','🎨 Творчество'],
+  ['news','📰 Новости'],['entertainment','🎬 Развлечения'],
+  ['edu','🎓 Образование'],['other','🌍 Другое'],
+];
+
 function _renderNetworkSearchShell() {
   const nr = document.getElementById('networkSearchResults');
   if (!nr) return;
+
+  const activeCatLabel = NET_CATS.find(([v]) => v === _netCatFilter)?.[1] || 'Все категории';
+
   nr.innerHTML = `
     <!-- Вкладки -->
     <div class="net-tabs">
-      <div class="net-tab ${_netTab==='my'?'active':''}"  onclick="switchNetTab('my')">🗂 Мои сетки</div>
+      <div class="net-tab ${_netTab==='my' ?'active':''}" onclick="switchNetTab('my')">🗂 Мои сетки</div>
       <div class="net-tab ${_netTab==='all'?'active':''}" onclick="switchNetTab('all')">🌐 Все сетки</div>
     </div>
 
-    <!-- Фильтр по категории (горизонтальный скролл) -->
-    <div class="cats-scroll" id="netCatFilter" style="margin:8px 0 6px">
-      ${[['all','⚡ Все'],['tech','🖥️ Tech'],['business','💼 Бизнес'],['finance','📈 Финансы'],
-         ['games','🎮 Игры'],['art','🎨 Творчество'],['news','📰 Новости'],
-         ['entertainment','🎬 Развлечения'],['edu','🎓 Образование'],['other','🌍 Другое']]
-        .map(([v,l]) => `<div class="cat-pill ${_netCatFilter===v?'active':''}" onclick="setNetCat('${v}')">${l}</div>`)
-        .join('')}
+    <!-- Сворачиваемый фильтр категорий -->
+    <div class="net-cat-wrap">
+      <div class="net-cat-toggle" onclick="toggleNetCat()">
+        <span>🏷 Категория: <strong>${activeCatLabel}</strong></span>
+        <span class="net-cat-arrow ${_netCatOpen?'open':''}">▾</span>
+      </div>
+      <div class="net-cat-list ${_netCatOpen?'open':''}">
+        ${NET_CATS.map(([v,l]) => `
+          <div class="net-cat-item ${_netCatFilter===v?'active':''}" onclick="setNetCat('${v}')">
+            ${l}
+            ${_netCatFilter===v ? '<span class="net-cat-check">✓</span>' : ''}
+          </div>`).join('')}
+      </div>
     </div>
 
     <!-- Список карточек -->
@@ -353,19 +367,28 @@ function _renderNetworkSearchShell() {
   `;
 }
 
+function toggleNetCat() {
+  _netCatOpen = !_netCatOpen;
+  // Обновляем только внутренности блока, не перерисовывая карточки
+  const wrap  = document.querySelector('.net-cat-wrap');
+  const list  = document.querySelector('.net-cat-list');
+  const arrow = document.querySelector('.net-cat-arrow');
+  if (!wrap || !list || !arrow) return;
+  list.classList.toggle('open', _netCatOpen);
+  arrow.classList.toggle('open', _netCatOpen);
+  if (tg) tg.HapticFeedback?.impactOccurred('light');
+}
+
 function switchNetTab(tab) {
   _netTab = tab;
+  _netCatOpen = false;
   _renderNetworkSearchShell();
   _renderNetworkCards();
 }
 
 function setNetCat(cat) {
   _netCatFilter = cat;
-  // перерисовываем пилюли
-  document.querySelectorAll('#netCatFilter .cat-pill').forEach(p => {
-    p.classList.toggle('active', p.textContent.trim() === document.querySelector(`#netCatFilter .cat-pill[onclick="setNetCat('${cat}')"]`)?.textContent.trim());
-  });
-  // проще — перерисовать весь шелл
+  _netCatOpen = false;   // закрываем после выбора
   _renderNetworkSearchShell();
   _renderNetworkCards();
 }

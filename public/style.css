@@ -1001,3 +1001,83 @@ a {
 .modal-btn-primary:active {
   opacity: .85;
 }
+
+/* ── Сворачиваемый фильтр категорий сеток ────────────────────────────────── */
+.net-cat-wrap {
+  margin: 8px 0 6px;
+  border-radius: 12px;
+  border: 1.5px solid var(--border);
+  background: var(--card2);
+  overflow: hidden;
+}
+
+.net-cat-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text2);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.net-cat-toggle strong {
+  color: var(--accent);
+  font-weight: 700;
+}
+.net-cat-toggle:active {
+  background: rgba(108,99,255,.06);
+}
+
+.net-cat-arrow {
+  font-size: 16px;
+  color: var(--text3);
+  transition: transform .22s ease;
+  display: inline-block;
+}
+.net-cat-arrow.open {
+  transform: rotate(180deg);
+}
+
+.net-cat-list {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height .28s ease;
+  border-top: 0px solid var(--border);
+}
+.net-cat-list.open {
+  max-height: 520px;
+  border-top-width: 1.5px;
+}
+
+.net-cat-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text2);
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.net-cat-item:last-child {
+  border-bottom: none;
+}
+.net-cat-item:active {
+  background: rgba(108,99,255,.07);
+}
+.net-cat-item.active {
+  color: var(--accent);
+  background: rgba(108,99,255,.08);
+  font-weight: 700;
+}
+
+.net-cat-check {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--accent);
+}
