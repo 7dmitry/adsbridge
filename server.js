@@ -815,13 +815,9 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
     const fmtP = (p) => (p && p !== '-') ? `${p}${netSym}` : '—';
 
     // Строки по каналам
-    const chLines = channels.map(c => {
-      const cSym  = CURRENCY_SYMBOLS[c.currency || 'RUB'] || '₽';
-      const fmtC  = (p) => (p && p !== '-') ? `${p}${cSym}` : '—';
-      const subs  = c.subscribers ? `👥 ${c.subscribers}` : '';
-      return `📢 *${c.name}* (@${c.usname}) ${subs}\n` +
-             `   24ч: ${fmtC(c.pricead_24)} · 48ч: ${fmtC(c.pricead_48)} · 72ч: ${fmtC(c.pricead_72)} · ∞: ${fmtC(c.pricead_all)}`;
-    }).join('\n\n');
+    const chLines = channels.map(c =>
+      `${c.name} (@${c.usname})`
+    ).join('\n');
 
     // Суммарные подписчики
     const totalSubs = channels.reduce((s, c) => s + (parseInt(c.subscribers) || 0), 0);
