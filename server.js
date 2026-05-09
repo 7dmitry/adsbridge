@@ -620,51 +620,104 @@ app.post('/api/verify-channel', requireTgAuth, async (req, res) => {
   const { usname, user_id } = req.body;
   if (!usname || !user_id) return res.status(400).json({ error: 'Укажи usname и user_id' });
 
+  // ── Нормализация ввода ──────────────────────────────────────────────────────
+  // Поддерживаем форматы:
+  //   @AdsWay_Official
+  //   AdsWay_Official
+  //   t.me/AdsWay_Official
+  //   https://t.me/AdsWay_Official
+  //   https://t.me/+Cb0fLzIELCRmNWYy   ← приватный (invite hash)
+  //   t.me/+Cb0fLzIELCRmNWYy
+  //   +Cb0fLzIELCRmNWYy
+
+  let raw = usname.trim();
+
+  // Убираем протокол и домен
+  raw = raw.replace(/^https?:\/\//i, '').replace(/^t\.me\//i, '');
+  // Убираем @ в начале
+  if (raw.startsWith('@')) raw = raw.slice(1);
+
+  // Определяем тип: приватный (начинается с +) или публичный
+  const isPrivate = raw.startsWith('+');
+
+  // chat_id для запросов к Bot API
+  // Публичный: @username → передаём строку с @
+  // Приватный: https://t.me/+HASH → передаём как есть (t.me/+HASH формат)
+  const chatId = isPrivate ? `https://t.me/${raw}` : `@${raw}`;
+
+  // usname для хранения в БД (для приватных — сам hash без +)
+  const storedUsname = isPrivate ? raw.replace(/^\+/, '') : raw;
+
   try {
-    const memberRes = await fetch(
-      `https://api.telegram.org/bot${process.env.BOT_TOKEN}/getChatMember`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: '@' + usname, user_id }),
-      }
-    );
-    const memberData = await memberRes.json();
-
-    if (!memberData.ok) {
-      return res.status(400).json({ verified: false, error: 'Бот не добавлен в канал или канал не найден' });
-    }
-
-    const status = memberData.result?.status;
-    if (status !== 'creator' && status !== 'administrator') {
-      return res.status(403).json({ verified: false, error: 'Вы не являетесь владельцем или администратором' });
-    }
-
-    const countRes = await fetch(
-      `https://api.telegram.org/bot${process.env.BOT_TOKEN}/getChatMembersCount`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: '@' + usname }),
-      }
-    );
-    const countData = await countRes.json();
-    const subscribers = countData.ok ? countData.result : 0;
-
+    // ── 1. Проверяем что бот состоит в канале и получаем chat info ────────────
     const chatRes = await fetch(
       `https://api.telegram.org/bot${process.env.BOT_TOKEN}/getChat`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: '@' + usname }),
+        body: JSON.stringify({ chat_id: chatId }),
       }
     );
     const chatData = await chatRes.json();
-    const channelName = chatData.ok ? chatData.result.title : null;
-    let avatar_url = null;
 
-    if (chatData.ok && chatData.result.photo) {
-      const fileId = chatData.result.photo.big_file_id;
+    if (!chatData.ok) {
+      return res.status(400).json({
+        verified: false,
+        error: isPrivate
+          ? 'Бот не добавлен в канал. Добавьте бота как администратора и попробуйте снова'
+          : 'Канал не найден или бот не добавлен как администратор'
+      });
+    }
+
+    const chat = chatData.result;
+    // Реальный числовой chat_id (работает и для приватных, и для публичных)
+    const numericChatId = chat.id;
+    const channelName   = chat.title || null;
+    // Для публичных каналов берём username из getChat, для приватных — наш hash
+    const finalUsname   = chat.username || storedUsname;
+
+    // ── 2. Проверяем роль пользователя ────────────────────────────────────────
+    const memberRes = await fetch(
+      `https://api.telegram.org/bot${process.env.BOT_TOKEN}/getChatMember`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: numericChatId, user_id }),
+      }
+    );
+    const memberData = await memberRes.json();
+
+    if (!memberData.ok) {
+      return res.status(403).json({
+        verified: false,
+        error: 'Не удалось проверить вашу роль в канале'
+      });
+    }
+
+    const status = memberData.result?.status;
+    if (status !== 'creator' && status !== 'administrator') {
+      return res.status(403).json({
+        verified: false,
+        error: 'Вы не являетесь владельцем или администратором канала'
+      });
+    }
+
+    // ── 3. Количество подписчиков ─────────────────────────────────────────────
+    const countRes = await fetch(
+      `https://api.telegram.org/bot${process.env.BOT_TOKEN}/getChatMemberCount`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: numericChatId }),
+      }
+    );
+    const countData = await countRes.json();
+    const subscribers = countData.ok ? countData.result : 0;
+
+    // ── 4. Аватар ─────────────────────────────────────────────────────────────
+    let avatar_url = null;
+    if (chat.photo) {
+      const fileId  = chat.photo.big_file_id;
       const fileRes = await fetch(
         `https://api.telegram.org/bot${process.env.BOT_TOKEN}/getFile`,
         {
@@ -679,7 +732,16 @@ app.post('/api/verify-channel', requireTgAuth, async (req, res) => {
       }
     }
 
-    res.json({ verified: true, role: status, subscribers, avatar_url, name: channelName });
+    res.json({
+      verified:    true,
+      role:        status,
+      subscribers,
+      avatar_url,
+      name:        channelName,
+      usname:      finalUsname,   // возвращаем нормализованный usname для сохранения
+      is_private:  isPrivate,
+      numeric_id:  numericChatId,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

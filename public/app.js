@@ -758,8 +758,8 @@ async function renderManagePage() {
   document.getElementById('manageFormCard').innerHTML = `
     <div class="manage-form-title" id="manageFormTitle">➕ Добавить канал</div>
     <div class="form-group">
-      <label class="form-label">Username (без @) *</label>
-      <input class="form-input" id="fUsname" placeholder="techpulse">
+      <label class="form-label">Username или ссылка на канал *</label>
+      <input class="form-input" id="fUsname" placeholder="@channel, t.me/channel или t.me/+hash">
     </div>
     <div class="form-group">
       <label class="form-label">Категория *</label>
@@ -875,7 +875,12 @@ function updatePriceLabels() {
 // ── Добавить / обновить канал ─────────────────────────────────────────────────
 async function submitChannel() {
   const user     = tg?.initDataUnsafe?.user;
-  const usname   = document.getElementById('fUsname')?.value.trim().replace('@','');
+  // Нормализация: убираем протокол, домен, @
+  let rawInput   = (document.getElementById('fUsname')?.value || '').trim();
+  rawInput = rawInput.replace(/^https?:\/\//i, '').replace(/^t\.me\//i, '');
+  if (rawInput.startsWith('@')) rawInput = rawInput.slice(1);
+
+  const usname   = rawInput;
   const category = document.getElementById('fCategory')?.value;
   const price24  = document.getElementById('fPrice24')?.value.trim();
   const price48  = document.getElementById('fPrice48')?.value.trim();
@@ -928,6 +933,11 @@ async function submitChannel() {
 // ── Шаг верификации ───────────────────────────────────────────────────────────
 function showVerifyStep(usname, channelData) {
   const botUsername = 'adsway_bot';
+  const isPrivate   = usname.startsWith('+');
+  // Человекочитаемое отображение канала
+  const displayName = isPrivate
+    ? `приватный канал (t.me/+${usname.replace(/^\+/,'')})`
+    : `@${usname}`;
 
   document.getElementById('manageFormCard').innerHTML = `
     <div class="manage-form-title">🔐 Подтверждение владения</div>
@@ -935,14 +945,16 @@ function showVerifyStep(usname, channelData) {
       <div class="verify-step">
         <div class="verify-step-num">1</div>
         <div class="verify-step-text">
-          Добавь бота <strong>@${botUsername}</strong> в канал <strong>@${usname}</strong>
-          как администратора (можно убрать все разрешения)
+          Добавь бота <strong>@${botUsername}</strong> в <strong>${displayName}</strong>
+          как администратора (можно без разрешений)
         </div>
       </div>
       <div class="verify-step">
         <div class="verify-step-num">2</div>
         <div class="verify-step-text">
-          Нажми кнопку «Проверить» — мы убедимся что ты владелец
+          ${isPrivate
+            ? 'Для приватных каналов бот определяет тебя по Telegram ID — убедись что бот уже добавлен'
+            : 'Нажми «Проверить» — убедимся что ты администратор'}
         </div>
       </div>
     </div>
@@ -982,6 +994,8 @@ async function verifyAndSave() {
   channelData.name        = verify.name || channelData.usname;
   channelData.subscribers = verify.subscribers || 0;
   channelData.avatar_url  = verify.avatar_url || null;
+  // Используем usname из ответа сервера (нормализованный)
+  if (verify.usname) channelData.usname = verify.usname;
 
   const result = await apiFetch('/channels', {
     method: 'POST',
