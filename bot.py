@@ -403,12 +403,9 @@ async def on_bot_added_as_admin(event: ChatMemberUpdated):
 
     try:
         c.execute("""
-            INSERT INTO pending_channel_ids (user_id, chat_id, created_at)
-            VALUES (%s, %s, NOW())
-            ON CONFLICT (user_id) DO UPDATE
-              SET chat_id    = EXCLUDED.chat_id,
-                  created_at = NOW()
-        """, (user_id, str(channel_id)))
+            INSERT INTO pending_channel_ids (user_id, chat_id, channel_name, created_at)
+            VALUES (%s, %s, %s, NOW())
+        """, (user_id, str(channel_id), channel_name))
         logger.info(f"✅ Бот добавлен в канал '{channel_name}' ({channel_id}) пользователем {user_id}")
     except Exception as e:
         logger.error(f"Ошибка записи pending_channel_ids: {e}")

@@ -1073,9 +1073,10 @@ function startPollChannelId(channelData) {
       if (res && res.chat_id) {
         stopPollChannelId();
 
+        const name = res.channel_name || res.chat_id;
         const el  = document.getElementById('pollStatusText');
         const box = document.getElementById('pollStatus');
-        if (el)  el.textContent = '✅ Канал найден! Проверяем права…';
+        if (el)  el.textContent = `✅ Найден: "${name}" — проверяем права…`;
         if (box) box.classList.add('success');
 
         // Записываем chat_id и запускаем верификацию
@@ -1164,9 +1165,24 @@ async function verifyAndSave() {
   }
 
   showToast(`✅ Канал "${channelData.name}" добавлен!`, 'success');
-  renderManagePage();
   loadStats();
-  window._pendingChannel = null;
+
+  // Проверяем: остались ли ещё каналы в очереди (добавили несколько сразу)
+  const next = user ? await apiFetch(`/verify-channel/pending/${user.id}`) : null;
+  if (next && next.chat_id) {
+    // Есть следующий — верифицируем его с теми же параметрами формы
+    const nextName = next.channel_name || next.chat_id;
+    window._pendingChannel = { ...channelData, usname: String(next.chat_id) };
+    const el  = document.getElementById('pollStatusText');
+    const box = document.getElementById('pollStatus');
+    if (el)  el.textContent = `✅ Следующий: "${nextName}" — проверяем права…`;
+    if (box) { box.classList.remove('error'); box.classList.add('success'); }
+    await verifyAndSave();
+  } else {
+    // Очередь пуста — возвращаемся на страницу управления
+    renderManagePage();
+    window._pendingChannel = null;
+  }
 }
 
 // ── Редактировать канал ───────────────────────────────────────────────────────

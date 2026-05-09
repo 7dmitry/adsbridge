@@ -933,12 +933,14 @@ app.patch('/api/channels/:id/collab', requireTgAuth, async (req, res) => {
   }
 });
 
-// ── Таблица pending_channel_ids (создаётся при старте) ────────────────────────
+// ── Таблица pending_channel_ids — очередь (один user может иметь несколько) ──
 pool.query(`
   CREATE TABLE IF NOT EXISTS pending_channel_ids (
-    user_id    BIGINT PRIMARY KEY,
-    chat_id    TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    id           BIGSERIAL PRIMARY KEY,
+    user_id      BIGINT NOT NULL,
+    chat_id      TEXT NOT NULL,
+    channel_name TEXT,
+    created_at   TIMESTAMPTZ DEFAULT NOW()
   )
 `).catch(e => console.error('pending_channel_ids init error:', e));
 
@@ -948,19 +950,25 @@ setInterval(() => {
     .catch(() => {});
 }, 5 * 60 * 1000);
 
-// ── GET /api/verify-channel/pending/:user_id — фронт поллит это ────────────────
+// ── GET /api/verify-channel/pending/:user_id — забирает ОДНУ запись из очереди ─
 app.get('/api/verify-channel/pending/:user_id', requireTgAuth, async (req, res) => {
   const userId = parseInt(req.params.user_id);
   if (!userId) return res.status(400).json({ error: 'Неверный user_id' });
   try {
+    // Берём самую старую запись (FIFO) и сразу удаляем её
     const r = await pool.query(
-      'SELECT chat_id FROM pending_channel_ids WHERE user_id = $1',
+      `DELETE FROM pending_channel_ids
+       WHERE id = (
+         SELECT id FROM pending_channel_ids
+         WHERE user_id = $1
+         ORDER BY created_at ASC
+         LIMIT 1
+       )
+       RETURNING chat_id, channel_name`,
       [userId]
     );
     if (r.rows.length === 0) return res.json({ pending: true });
-    // Нашли — удаляем запись и возвращаем chat_id
-    await pool.query('DELETE FROM pending_channel_ids WHERE user_id = $1', [userId]);
-    res.json({ chat_id: r.rows[0].chat_id });
+    res.json({ chat_id: r.rows[0].chat_id, channel_name: r.rows[0].channel_name });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
