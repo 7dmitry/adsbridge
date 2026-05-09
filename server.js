@@ -933,20 +933,18 @@ app.patch('/api/channels/:id/collab', requireTgAuth, async (req, res) => {
   }
 });
 
-// ── Таблица pending_channel_ids — очередь (один user может иметь несколько) ──
+// ── Таблица pending_channel_ids — пересоздаём при старте (временная очередь) ──
 pool.query(`
-  CREATE TABLE IF NOT EXISTS pending_channel_ids (
+  DROP TABLE IF EXISTS pending_channel_ids;
+  CREATE TABLE pending_channel_ids (
     id           BIGSERIAL PRIMARY KEY,
     user_id      BIGINT NOT NULL,
     chat_id      TEXT NOT NULL,
     channel_name TEXT,
     created_at   TIMESTAMPTZ DEFAULT NOW()
-  )
-`).then(() =>
-  // Если таблица существует со старой схемой — добавляем channel_name
-  pool.query(`ALTER TABLE pending_channel_ids ADD COLUMN IF NOT EXISTS channel_name TEXT`)
-  .catch(() => {})
-).catch(e => console.error('pending_channel_ids init error:', e));
+  );
+`).then(() => console.log('✅ pending_channel_ids готова'))
+  .catch(e => console.error('pending_channel_ids init error:', e));
 
 // Автоочистка старых записей (старше 10 минут) — раз в 5 минут
 setInterval(() => {
