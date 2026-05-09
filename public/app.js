@@ -104,7 +104,7 @@ function mapChannel(ch) {
     id:                 ch.id,
     name:               ch.name,
     usname:             ch.usname,
-    username:           '@' + ch.usname,
+    username:           fmtUsname(ch.usname),
     cat:                ch.category,
     subs:               ch.subscribers || 0,
     desc:               ch.desc || '',
@@ -163,6 +163,13 @@ function showToast(msg, type = '') {
 }
 
 // ── Format numbers ────────────────────────────────────────────────────────────
+// Отображение usname: приватный канал (числовой ID) → '🔒 Приватный'
+function fmtUsname(usname) {
+  if (!usname) return '';
+  const s = String(usname).trim();
+  return /^-?\d{6,}$/.test(s) ? '🔒 Приватный' : '@' + s.replace(/^@/, '');
+}
+
 function fmt(n) {
   if (n >= 1000000) return (n/1000000).toFixed(1) + 'М';
   if (n >= 1000) return (n/1000).toFixed(n >= 10000 ? 0 : 1) + 'К';
@@ -478,7 +485,7 @@ function buildNetworkCard(net) {
           ${c.avatar_url
             ? `<img src="${c.avatar_url}" style="width:16px;height:16px;border-radius:4px;object-fit:cover" onerror="this.style.display='none'">`
             : '<span style="font-size:13px">📢</span>'}
-          <strong style="font-size:11px">@${c.usname}</strong>
+          <strong style="font-size:11px">${fmtUsname(c.usname)}</strong>
         </div>`).join('')}
       ${channels.length > 4 ? `<div class="metric"><strong style="font-size:11px;color:var(--text3)">+${channels.length-4}</strong></div>` : ''}
     </div>
@@ -573,7 +580,7 @@ function openNetworkModal(netId) {
             </div>
             <div class="net-ch-info">
               <div class="net-ch-name">${c.name}</div>
-              <div class="net-ch-meta">@${c.usname}</div>
+              <div class="net-ch-meta">${fmtUsname(c.usname)}</div>
               <div class="net-ch-prices">
                 ${[['24ч',c.pricead_24],['48ч',c.pricead_48],['72ч',c.pricead_72],['∞',c.pricead_all]]
                   .filter(([,v]) => v)
@@ -857,7 +864,7 @@ async function renderManagePage() {
     <div class="manage-ch-item">
       <div class="manage-ch-info">
         <div class="manage-ch-name">${ch.name}</div>
-        <div class="manage-ch-meta">@${ch.usname} · ${CAT_NAMES[ch.category] || ch.category} · ${fmt(ch.subscribers || 0)} подп.</div>
+        <div class="manage-ch-meta">${fmtUsname(ch.usname)} · ${CAT_NAMES[ch.category] || ch.category} · ${fmt(ch.subscribers || 0)} подп.</div>
         <div class="manage-ch-prices">
           ${prices.map(p => `<span class="tag">${p}</span>`).join('')}
           <span class="tag" style="background:rgba(108,99,255,.1);color:var(--accent2)">${sym} ${userCurrencyPrimary || ch.currency || 'RUB'}</span>
@@ -1269,7 +1276,7 @@ async function renderCollabSettings() {
           </div>
           <div class="set-text">
             <div class="set-title">${ch.name}</div>
-            <div class="set-sub">@${ch.usname}</div>
+            <div class="set-sub">${fmtUsname(ch.usname)}</div>
           </div>
           <div class="set-right">
             <span style="font-size:11px;color:var(--text3);margin-right:6px">ВП</span>
@@ -1485,7 +1492,7 @@ function renderNetworkSettingsUI() {
                   ${(net.channels||[]).map(c => `
                     <span class="tag" style="display:inline-flex;align-items:center;gap:4px">
                       ${c.avatar_url ? `<img src="${c.avatar_url}" style="width:14px;height:14px;border-radius:3px;object-fit:cover">` : '📢'}
-                      @${c.usname}
+                      ${fmtUsname(c.usname)}
                     </span>`).join('')}
                 </div>
               </div>
@@ -1642,7 +1649,7 @@ function _renderNetworkEditorUI(net, myChannels) {
             : _netEditorChannels.map(c => `
                 <div class="tag" style="display:inline-flex;align-items:center;gap:5px;padding:5px 8px">
                   ${c.avatar_url ? `<img src="${c.avatar_url}" style="width:14px;height:14px;border-radius:3px;object-fit:cover">` : '📢'}
-                  @${c.usname}
+                  ${fmtUsname(c.usname)}
                   <span style="cursor:pointer;color:var(--danger);margin-left:2px;font-weight:700"
                     onclick="netEditorRemoveChannel(${c.id})">✕</span>
                 </div>`).join('')}
@@ -1654,7 +1661,7 @@ function _renderNetworkEditorUI(net, myChannels) {
               <div class="tag" style="cursor:pointer;padding:6px 10px;display:inline-flex;align-items:center;gap:5px"
                    onclick="netEditorAddChannel(${c.id})">
                 ${c.avatar_url ? `<img src="${c.avatar_url}" style="width:14px;height:14px;border-radius:3px;object-fit:cover">` : '📢'}
-                + @${c.usname}
+                + ${fmtUsname(c.usname)}
               </div>`).join('')}
           </div>` : '<div style="color:var(--text3);font-size:12px">Все ваши каналы уже добавлены</div>'}
       </div>

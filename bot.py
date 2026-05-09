@@ -7,8 +7,6 @@ from aiogram.types import (
     InlineKeyboardMarkup, InlineKeyboardButton,
 )
 from aiogram.filters import Command, CommandStart
-from aiogram.filters.chat_member_updated import ChatMemberUpdatedFilter, IS_NOT_MEMBER, ADMINISTRATOR
-from aiogram.types import ChatMemberUpdated
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -95,20 +93,28 @@ def get_user_channels(user_id):
     except Exception:
         return []
 
+def _chat_id(usname: str):
+    """Возвращает chat_id для Telegram API: числовой ID как int, публичный — '@username'."""
+    s = usname.strip()
+    if s.lstrip('-').isdigit():   # приватный: '-1001234567890' или '1001234567890'
+        return int(s)
+    return '@' + s.lstrip('@')
+
 async def fetch_channel_info(usname: str):
     """Возвращает (subscribers, avatar_url, name) или (None, None, None)."""
     try:
-        chat = await bot.get_chat('@' + usname)
+        chat_id = _chat_id(usname)
+        chat = await bot.get_chat(chat_id)
         name = chat.title
         avatar_url = None
         if chat.photo:
             file = await bot.get_file(chat.photo.big_file_id)
             avatar_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
-        subs = await bot.get_chat_member_count('@' + usname)
-        logger.info(f"✅ @{usname} → {subs} подп., название: {name}")
+        subs = await bot.get_chat_member_count(chat_id)
+        logger.info(f"✅ {usname} → {subs} подп., название: {name}")
         return subs, avatar_url, name
     except Exception as e:
-        logger.warning(f"Ошибка получения инфо @{usname}: {e}")
+        logger.warning(f"Ошибка получения инфо {usname}: {e}")
         return None, None, None
 
 async def update_channel_subscribers(channel_id: int, usname: str):
@@ -288,10 +294,7 @@ async def main():
     scheduler.start()
     logger.info(f"⏰ Планировщик запущен, интервал: каждые {interval_hours}ч")
     logger.info("🚀 AdsBridge Bot запущен")
-    await dp.start_polling(
-        bot,
-        allowed_updates=["message", "callback_query", "chat_member", "my_chat_member"],
-    )
+    await dp.start_polling(bot)
 
 CAT_KEYS = {"tech", "business", "games", "art", "news", "finance", "entertainment", "edu", "other"}
 
@@ -378,8 +381,6 @@ async def cmd_add_channel(msg: types.Message):
         logger.error(f"Ошибка добавления канала: {e}")
         await msg.answer(f"❌ Ошибка при записи в БД:\n<code>{e}</code>")
 
-
-# ── Бот добавлен в канал как администратор ────────────────────────────────────
 @dp.my_chat_member(
     ChatMemberUpdatedFilter(member_status_changed=IS_NOT_MEMBER >> ADMINISTRATOR)
 )
@@ -414,7 +415,6 @@ async def on_bot_added_as_admin(event: ChatMemberUpdated):
         )
     except Exception:
         pass  # пользователь мог не начать диалог с ботом
-
 
 if __name__ == "__main__":
     asyncio.run(main())
