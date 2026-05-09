@@ -7,6 +7,8 @@ from aiogram.types import (
     InlineKeyboardMarkup, InlineKeyboardButton,
 )
 from aiogram.filters import Command, CommandStart
+from aiogram.filters.chat_member_updated import ChatMemberUpdatedFilter, IS_NOT_MEMBER, ADMINISTRATOR
+from aiogram.types import ChatMemberUpdated
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -280,8 +282,6 @@ async def handle_webapp_data(message: types.Message):
       
 # ── Запуск ────────────────────────────────────────────────────────────────────
 async def main():
-    # Планировщик: каждые 24-72 часа (1-3 дня)
-    # Интервал выбирается случайно при каждом запуске
     interval_hours = 12
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
@@ -294,7 +294,14 @@ async def main():
     scheduler.start()
     logger.info(f"⏰ Планировщик запущен, интервал: каждые {interval_hours}ч")
     logger.info("🚀 AdsBridge Bot запущен")
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(
+            bot,
+            allowed_updates=["message", "callback_query", "chat_member", "my_chat_member"],
+        )
+    finally:
+        scheduler.shutdown(wait=False)
+        logger.info("🛑 Бот остановлен")
 
 CAT_KEYS = {"tech", "business", "games", "art", "news", "finance", "entertainment", "edu", "other"}
 
@@ -381,17 +388,18 @@ async def cmd_add_channel(msg: types.Message):
         logger.error(f"Ошибка добавления канала: {e}")
         await msg.answer(f"❌ Ошибка при записи в БД:\n<code>{e}</code>")
 
+
+# ── Бот добавлен в канал как администратор ────────────────────────────────────
 @dp.my_chat_member(
     ChatMemberUpdatedFilter(member_status_changed=IS_NOT_MEMBER >> ADMINISTRATOR)
 )
 async def on_bot_added_as_admin(event: ChatMemberUpdated):
-    # Только каналы, не группы
     if event.chat.type != 'channel':
         return
 
-    channel_id   = event.chat.id        # числовой ID, например -1001234567890
+    channel_id   = event.chat.id
     channel_name = event.chat.title or ''
-    user_id      = event.from_user.id   # кто добавил бота
+    user_id      = event.from_user.id
 
     try:
         c.execute("""
@@ -406,7 +414,6 @@ async def on_bot_added_as_admin(event: ChatMemberUpdated):
         logger.error(f"Ошибка записи pending_channel_ids: {e}")
         return
 
-    # Уведомляем пользователя в личку
     try:
         await bot.send_message(
             user_id,
@@ -414,9 +421,12 @@ async def on_bot_added_as_admin(event: ChatMemberUpdated):
             f"Вернитесь в AdsWay — страница обновится автоматически.",
         )
     except Exception:
-        pass  # пользователь мог не начать диалог с ботом
+        pass
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
-
-db.close()
+    try:
+        asyncio.run(main())
+    finally:
+        db.close()
+        logger.info("🔌 Соединение с БД закрыто")
