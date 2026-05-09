@@ -180,8 +180,22 @@
         <!-- Заполняется через JS renderManagePage() -->
         <div class="manage-form-title">➕ Добавить канал</div>
         <div class="form-group">
-          <label class="form-label">Username или ссылка на канал *</label>
-          <input class="form-input" id="fUsname" placeholder="@channel, t.me/channel или t.me/+hash">
+          <label class="form-label">Тип канала *</label>
+          <div class="channel-type-toggle">
+            <button type="button" id="typeBtnPublic" class="type-btn active"
+              onclick="setChannelType('public')">🌐 Публичный</button>
+            <button type="button" id="typeBtnPrivate" class="type-btn"
+              onclick="setChannelType('private')">🔒 Приватный</button>
+          </div>
+        </div>
+        <div class="form-group" id="usnameGroup">
+          <label class="form-label">Username или ссылка *</label>
+          <input class="form-input" id="fUsname" placeholder="@channel или t.me/channel">
+        </div>
+        <div class="form-group" id="privateHintGroup" style="display:none">
+          <div class="private-channel-hint">
+            🤖 ID получим автоматически — после нажатия «Добавить» просто добавь бота в канал как администратора
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">Категория *</label>

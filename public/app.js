@@ -758,8 +758,8 @@ async function renderManagePage() {
   document.getElementById('manageFormCard').innerHTML = `
     <div class="manage-form-title" id="manageFormTitle">➕ Добавить канал</div>
     <div class="form-group">
-      <label class="form-label">Username или ссылка на канал *</label>
-      <input class="form-input" id="fUsname" placeholder="@channel, t.me/channel или t.me/+hash">
+      <label class="form-label">Username, ссылка или ID канала *</label>
+      <input class="form-input" id="fUsname" placeholder="@username, t.me/channel или -1001234567890">
     </div>
     <div class="form-group">
       <label class="form-label">Категория *</label>
@@ -872,15 +872,43 @@ function updatePriceLabels() {
   });
 }
 
+// ── Переключатель тип канала ──────────────────────────────────────────────────
+let _channelType = 'public'; // 'public' | 'private'
+
+function setChannelType(type) {
+  _channelType = type;
+  const btnPub  = document.getElementById('typeBtnPublic');
+  const btnPriv = document.getElementById('typeBtnPrivate');
+  const usnameG = document.getElementById('usnameGroup');
+  const hintG   = document.getElementById('privateHintGroup');
+
+  if (type === 'public') {
+    btnPub?.classList.add('active');
+    btnPriv?.classList.remove('active');
+    if (usnameG) usnameG.style.display = '';
+    if (hintG)   hintG.style.display   = 'none';
+  } else {
+    btnPriv?.classList.add('active');
+    btnPub?.classList.remove('active');
+    if (usnameG) usnameG.style.display = 'none';
+    if (hintG)   hintG.style.display   = '';
+  }
+}
+
 // ── Добавить / обновить канал ─────────────────────────────────────────────────
 async function submitChannel() {
   const user     = tg?.initDataUnsafe?.user;
-  // Нормализация: убираем протокол, домен, @
-  let rawInput   = (document.getElementById('fUsname')?.value || '').trim();
-  rawInput = rawInput.replace(/^https?:\/\//i, '').replace(/^t\.me\//i, '');
-  if (rawInput.startsWith('@')) rawInput = rawInput.slice(1);
+  const isPrivate = _channelType === 'private';
 
-  const usname   = rawInput;
+  // Нормализация usname для публичного канала
+  let usname = '';
+  if (!isPrivate) {
+    let rawInput = (document.getElementById('fUsname')?.value || '').trim();
+    rawInput = rawInput.replace(/^https?:\/\//i, '').replace(/^t\.me\//i, '');
+    if (rawInput.startsWith('@')) rawInput = rawInput.slice(1);
+    usname = rawInput;
+  }
+
   const category = document.getElementById('fCategory')?.value;
   const price24  = document.getElementById('fPrice24')?.value.trim();
   const price48  = document.getElementById('fPrice48')?.value.trim();
@@ -888,7 +916,7 @@ async function submitChannel() {
   const priceAll = document.getElementById('fPriceAll')?.value.trim();
   const currency = document.getElementById('fCurrency')?.value || 'RUB';
 
-  if (!usname || !category) {
+  if ((!isPrivate && !usname) || !category) {
     showToast('⚠️ Заполните обязательные поля', 'error');
     return;
   }
@@ -922,6 +950,7 @@ async function submitChannel() {
   showVerifyStep(usname, {
     usname, category, currency,
     name: '',
+    isPrivate,
     pricead_24:  price24  || null,
     pricead_48:  price48  || null,
     pricead_72:  price72  || null,
@@ -933,40 +962,113 @@ async function submitChannel() {
 // ── Шаг верификации ───────────────────────────────────────────────────────────
 function showVerifyStep(usname, channelData) {
   const botUsername = 'adsway_bot';
-  const isPrivate   = usname.startsWith('+');
-  // Человекочитаемое отображение канала
-  const displayName = isPrivate
-    ? `приватный канал (t.me/+${usname.replace(/^\+/,'')})`
-    : `@${usname}`;
-
-  document.getElementById('manageFormCard').innerHTML = `
-    <div class="manage-form-title">🔐 Подтверждение владения</div>
-    <div class="verify-steps">
-      <div class="verify-step">
-        <div class="verify-step-num">1</div>
-        <div class="verify-step-text">
-          Добавь бота <strong>@${botUsername}</strong> в <strong>${displayName}</strong>
-          как администратора (можно без разрешений)
-        </div>
-      </div>
-      <div class="verify-step">
-        <div class="verify-step-num">2</div>
-        <div class="verify-step-text">
-          ${isPrivate
-            ? 'Для приватных каналов бот определяет тебя по Telegram ID — убедись что бот уже добавлен'
-            : 'Нажми «Проверить» — убедимся что ты администратор'}
-        </div>
-      </div>
-    </div>
-    <div class="form-actions" style="margin-top:16px">
-      <button class="btn btn-secondary" onclick="renderManagePage()">Назад</button>
-      <button class="btn btn-primary" id="verifyBtn" onclick="verifyAndSave()" style="flex:1;justify-content:center">
-        🔍 Проверить
-      </button>
-    </div>
-  `;
+  const isPrivate   = channelData.isPrivate;
 
   window._pendingChannel = channelData;
+  window._pollTimer      = null;
+
+  if (isPrivate) {
+    // ── Приватный: автополучение ID через my_chat_member ──────────────────────
+    document.getElementById('manageFormCard').innerHTML = `
+      <div class="manage-form-title">🔐 Подтверждение владения</div>
+      <div class="verify-steps">
+        <div class="verify-step">
+          <div class="verify-step-num">1</div>
+          <div class="verify-step-text">
+            Зайди в настройки своего приватного канала →
+            <strong>Администраторы</strong> → добавь
+            <strong>@${botUsername}</strong> (достаточно без разрешений)
+          </div>
+        </div>
+        <div class="verify-step">
+          <div class="verify-step-num">2</div>
+          <div class="verify-step-text">
+            Как только добавишь — ID канала придёт автоматически, страница
+            обновится сама ⬇️
+          </div>
+        </div>
+      </div>
+      <div id="pollStatus" class="poll-status">
+        <span style="font-size:18px">⏳</span>
+        <span id="pollStatusText">Ожидаем добавления бота…</span>
+      </div>
+      <div class="form-actions" style="margin-top:16px">
+        <button class="btn btn-secondary"
+          onclick="stopPollChannelId(); renderManagePage()">Отмена</button>
+      </div>
+    `;
+    startPollChannelId(channelData);
+
+  } else {
+    // ── Публичный: обычная верификация по username ─────────────────────────────
+    document.getElementById('manageFormCard').innerHTML = `
+      <div class="manage-form-title">🔐 Подтверждение владения</div>
+      <div class="verify-steps">
+        <div class="verify-step">
+          <div class="verify-step-num">1</div>
+          <div class="verify-step-text">
+            Добавь бота <strong>@${botUsername}</strong> в канал
+            <strong>@${usname}</strong> как администратора (можно без разрешений)
+          </div>
+        </div>
+        <div class="verify-step">
+          <div class="verify-step-num">2</div>
+          <div class="verify-step-text">
+            Нажми «Проверить» — убедимся что ты администратор
+          </div>
+        </div>
+      </div>
+      <div class="form-actions" style="margin-top:16px">
+        <button class="btn btn-secondary" onclick="renderManagePage()">Назад</button>
+        <button class="btn btn-primary" id="verifyBtn" onclick="verifyAndSave()"
+          style="flex:1;justify-content:center">🔍 Проверить</button>
+      </div>
+    `;
+  }
+}
+
+// ── Поллинг для приватных каналов ─────────────────────────────────────────────
+function startPollChannelId(channelData) {
+  const user = tg?.initDataUnsafe?.user;
+  if (!user) return;
+
+  let attempts = 0;
+  const MAX_ATTEMPTS = 150; // 5 минут при интервале 2с
+
+  window._pollTimer = setInterval(async () => {
+    attempts++;
+    if (attempts > MAX_ATTEMPTS) {
+      stopPollChannelId();
+      const el = document.getElementById('pollStatusText');
+      if (el) el.textContent = 'Время ожидания вышло. Попробуйте снова.';
+      const box = document.getElementById('pollStatus');
+      if (box) box.classList.add('error');
+      return;
+    }
+
+    try {
+      const res = await apiFetch(`/verify-channel/pending/${user.id}`);
+      if (res && res.chat_id) {
+        stopPollChannelId();
+
+        const el  = document.getElementById('pollStatusText');
+        const box = document.getElementById('pollStatus');
+        if (el)  el.textContent = '✅ Канал найден! Проверяем права…';
+        if (box) box.classList.add('success');
+
+        // Записываем chat_id и запускаем верификацию
+        window._pendingChannel.usname = String(res.chat_id);
+        await verifyAndSave();
+      }
+    } catch (_) { /* сетевые ошибки при поллинге игнорируем */ }
+  }, 2000);
+}
+
+function stopPollChannelId() {
+  if (window._pollTimer) {
+    clearInterval(window._pollTimer);
+    window._pollTimer = null;
+  }
 }
 
 // ── Проверить и сохранить ─────────────────────────────────────────────────────
