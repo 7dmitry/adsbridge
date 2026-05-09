@@ -755,11 +755,26 @@ function closeModal(e) {
 
 // ── MANAGE PAGE ───────────────────────────────────────────────────────────────
 async function renderManagePage() {
+  _channelType = 'public'; // сбрасываем при каждом открытии формы
   document.getElementById('manageFormCard').innerHTML = `
     <div class="manage-form-title" id="manageFormTitle">➕ Добавить канал</div>
     <div class="form-group">
-      <label class="form-label">Username, ссылка или ID канала *</label>
-      <input class="form-input" id="fUsname" placeholder="@username, t.me/channel или -1001234567890">
+      <label class="form-label">Тип канала *</label>
+      <div class="channel-type-toggle">
+        <button type="button" id="typeBtnPublic" class="type-btn active"
+          onclick="setChannelType('public')">🌐 Публичный</button>
+        <button type="button" id="typeBtnPrivate" class="type-btn"
+          onclick="setChannelType('private')">🔒 Приватный</button>
+      </div>
+    </div>
+    <div class="form-group" id="usnameGroup">
+      <label class="form-label">Username или ссылка *</label>
+      <input class="form-input" id="fUsname" placeholder="@channel или t.me/channel">
+    </div>
+    <div class="form-group" id="privateHintGroup" style="display:none">
+      <div class="private-channel-hint">
+        🤖 ID получим автоматически — просто добавь бота в канал как администратора
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Категория *</label>
@@ -1135,6 +1150,14 @@ async function editChannel(id) {
 
   editingChannelId = id;
 
+  // При редактировании тип всегда «публичный» (usname уже известен), toggle скрываем
+  const toggleEl = document.querySelector('.channel-type-toggle')?.closest('.form-group');
+  if (toggleEl) toggleEl.style.display = 'none';
+  const usnameG = document.getElementById('usnameGroup');
+  if (usnameG) usnameG.style.display = '';
+  const hintG = document.getElementById('privateHintGroup');
+  if (hintG) hintG.style.display = 'none';
+
   if (document.getElementById('fUsname'))   document.getElementById('fUsname').value   = data.usname || '';
   if (document.getElementById('fCategory')) document.getElementById('fCategory').value = data.category || '';
   if (document.getElementById('fPrice24'))  document.getElementById('fPrice24').value  = data.pricead_24  || '';
@@ -1185,6 +1208,9 @@ function resetForm() {
   });
   const fCur = document.getElementById('fCurrency');
   if (fCur) fCur.value = 'RUB';
+
+  // Сбрасываем переключатель типа на «Публичный»
+  setChannelType('public');
 
   const title     = document.getElementById('manageFormTitle');
   const submitBtn = document.getElementById('formSubmitBtn');
