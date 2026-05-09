@@ -409,7 +409,16 @@ async def on_bot_added_as_admin(event: ChatMemberUpdated):
         logger.info(f"✅ Бот добавлен в канал '{channel_name}' ({channel_id}) пользователем {user_id}")
     except Exception as e:
         logger.error(f"Ошибка записи pending_channel_ids: {e}")
-        return
+        # Fallback: пробуем без channel_name (старая схема БД)
+        try:
+            c.execute("""
+                INSERT INTO pending_channel_ids (user_id, chat_id, created_at)
+                VALUES (%s, %s, NOW())
+            """, (user_id, str(channel_id)))
+            logger.info(f"✅ Записано (fallback без channel_name): {channel_id} для {user_id}")
+        except Exception as e2:
+            logger.error(f"Fallback тоже не удался: {e2}")
+            return
 
     try:
         await bot.send_message(

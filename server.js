@@ -942,7 +942,11 @@ pool.query(`
     channel_name TEXT,
     created_at   TIMESTAMPTZ DEFAULT NOW()
   )
-`).catch(e => console.error('pending_channel_ids init error:', e));
+`).then(() =>
+  // Если таблица существует со старой схемой — добавляем channel_name
+  pool.query(`ALTER TABLE pending_channel_ids ADD COLUMN IF NOT EXISTS channel_name TEXT`)
+  .catch(() => {})
+).catch(e => console.error('pending_channel_ids init error:', e));
 
 // Автоочистка старых записей (старше 10 минут) — раз в 5 минут
 setInterval(() => {
