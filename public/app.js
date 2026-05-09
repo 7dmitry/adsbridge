@@ -1075,7 +1075,19 @@ function startPollChannelId(channelData) {
         window._pendingChannel.usname = String(res.chat_id);
         await verifyAndSave();
       }
-    } catch (_) { /* сетевые ошибки при поллинге игнорируем */ }
+    } catch (err) {
+      // Сетевые ошибки при поллинге игнорируем, но ошибки верификации показываем
+      if (err instanceof TypeError && err.message.includes('null')) {
+        // null reference в verifyAndSave — критическая ошибка, останавливаем
+        console.error('verifyAndSave error:', err);
+        stopPollChannelId();
+        const el  = document.getElementById('pollStatusText');
+        const box = document.getElementById('pollStatus');
+        if (el)  el.textContent = '❌ Внутренняя ошибка — обновите страницу';
+        if (box) { box.classList.remove('success'); box.classList.add('error'); }
+      }
+      // иначе просто пропускаем (временная сетевая ошибка)
+    }
   }, 2000);
 }
 
@@ -1092,9 +1104,12 @@ async function verifyAndSave() {
   const channelData = window._pendingChannel;
   if (!channelData || !user) { showToast('⚠️ Ошибка — попробуйте снова', 'error'); return; }
 
-  const btn = document.getElementById('verifyBtn');
-  btn.textContent = '⏳ Проверяем…';
-  btn.disabled = true;
+  // Кнопка есть только в публичном флоу; в приватном используем pollStatus
+  const btn        = document.getElementById('verifyBtn');
+  const pollStatus = document.getElementById('pollStatusText');
+
+  if (btn) { btn.textContent = '⏳ Проверяем…'; btn.disabled = true; }
+  if (pollStatus) pollStatus.textContent = '🔄 Проверяем права администратора…';
 
   const verify = await apiFetch('/verify-channel', {
     method: 'POST',
@@ -1102,8 +1117,10 @@ async function verifyAndSave() {
   });
 
   if (!verify || verify.__error || !verify.verified) {
-    btn.textContent = '🔍 Проверить';
-    btn.disabled = false;
+    if (btn) { btn.textContent = '🔍 Проверить'; btn.disabled = false; }
+    if (pollStatus) pollStatus.textContent = '❌ Проверка не пройдена — попробуйте снова';
+    const box = document.getElementById('pollStatus');
+    if (box) { box.classList.remove('success'); box.classList.add('error'); }
     showToast(verify?.error || verify?.message || '❌ Проверка не пройдена', 'error');
     return;
   }
@@ -1120,8 +1137,10 @@ async function verifyAndSave() {
   });
 
   if (!result || result.__error) {
-    btn.textContent = '🔍 Проверить';
-    btn.disabled = false;
+    if (btn) { btn.textContent = '🔍 Проверить'; btn.disabled = false; }
+    if (pollStatus) pollStatus.textContent = '❌ Ошибка сохранения — попробуйте снова';
+    const box = document.getElementById('pollStatus');
+    if (box) { box.classList.remove('success'); box.classList.add('error'); }
     if (result?.status === 409) {
       showToast('❌ Этот канал уже добавлен другим пользователем', 'error');
     } else {
