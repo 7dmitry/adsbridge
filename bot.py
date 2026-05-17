@@ -282,7 +282,7 @@ async def handle_webapp_data(message: types.Message):
       
 # ── Запуск ────────────────────────────────────────────────────────────────────
 async def main():
-    interval_hours = 12
+    interval_hours = 8
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
         update_all_subscribers,

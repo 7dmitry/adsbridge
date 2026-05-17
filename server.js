@@ -726,8 +726,7 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT c.*, COALESCE(u.currency_primary,'RUB') as owner_currency_primary,
-              COALESCE(u.currency_extra,'[]'::jsonb) as owner_currency_extra,
-              u.username as owner_tg_username
+              COALESCE(u.currency_extra,'[]'::jsonb) as owner_currency_extra
        FROM channels c LEFT JOIN users u ON c.owner_id = u.id
        WHERE c.id = $1`,
       [channel_id]
@@ -735,22 +734,17 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
     const ch = result.rows[0];
     if (!ch) return res.status(404).json({ error: 'Канал не найден' });
 
-    // username владельца из таблицы users (не из usname канала)
-    const ownerUsername = ch.owner_tg_username || null;
+    let ownerUsername = ch.usname;
+    if (ch.owner_id) {
+      const ownerResult = await pool.query(
+        'SELECT username FROM users WHERE id = $1', [ch.owner_id]
+      );
+      if (ownerResult.rows[0]?.username) {
+        ownerUsername = ownerResult.rows[0].username;
+      }
+    }
 
-    // Приватный канал = числовой ID в usname
-    const isPrivateChannel = /^-?\d+$/.test(String(ch.usname));
-
-    // Экранирование для MarkdownV2
-    const esc = (s) => String(s || '')
-      .replace(/\\/g, '\\\\').replace(/\*/g, '\\*').replace(/_/g, '\\_')
-      .replace(/\[/g, '\\[').replace(/\]/g, '\\]').replace(/\(/g, '\\(')
-      .replace(/\)/g, '\\)').replace(/~/g, '\\~').replace(/`/g, '\\`')
-      .replace(/>/g, '\\>').replace(/#/g, '\\#').replace(/\+/g, '\\+')
-      .replace(/-/g, '\\-').replace(/=/g, '\\=').replace(/\|/g, '\\|')
-      .replace(/\{/g, '\\{').replace(/\}/g, '\\}').replace(/\./g, '\\.')
-      .replace(/!/g, '\\!');
-
+    // Берём валюту владельца (owner_currency_primary), а не поле канала
     const ownerCurrency = ch.owner_currency_primary || ch.currency || 'RUB';
     const sym = CURRENCY_SYMBOLS[ownerCurrency] || '₽';
     const formatPrice = (p) => (p && p !== '-') ? `${p}${sym}` : '—';
@@ -764,21 +758,24 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
     const allCurrs = [ownerCurrency, ...(Array.isArray(extras) ? extras.filter(c => c !== ownerCurrency) : [])];
     const payStr = allCurrs.map(c => CURRENCY_SYMBOLS[c] || c).join(', ');
 
+    // Plain text — без parse_mode, спецсимволы в названиях (|, /, *, _) не ломают
+    const isPrivateChannel = /^-?\d+$/.test(String(ch.usname));
     const channelLine = isPrivateChannel
-      ? `📢 *${esc(ch.name)}* \\(приватный канал\\)\n\n`
-      : `📢 *${esc(ch.name)}*\n@${esc(ch.usname)}\n\n`;
+      ? `📢 ${ch.name} (приватный канал)`
+      : `📢 ${ch.name}\n@${ch.usname}`;
 
     const text =
-      channelLine +
-      `💰 Реклама 24ч: ${esc(price24)}\n` +
-      `💰 Реклама 48ч: ${esc(price48)}\n` +
-      `💰 Реклама 72ч: ${esc(price72)}\n` +
-      `💰 Реклама навсегда: ${esc(priceAll)}\n` +
+      channelLine + `\n\n` +
+      `💰 Реклама 24ч: ${price24}\n` +
+      `💰 Реклама 48ч: ${price48}\n` +
+      `💰 Реклама 72ч: ${price72}\n` +
+      `💰 Реклама навсегда: ${priceAll}\n` +
       `👥 Подписчиков: ${ch.subscribers || 0}\n` +
       `💳 Оплата: ${payStr}\n\n` +
       `Напишите администратору канала 👇`;
 
-    const inlineKeyboard = ownerUsername
+    // Кнопка только если у владельца есть username
+    const keyboard = ownerUsername && !/^-?\d+$/.test(ownerUsername)
       ? { inline_keyboard: [[{ text: '✍️ Написать администратору', url: `https://t.me/${ownerUsername}` }]] }
       : undefined;
 
@@ -788,14 +785,13 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
       body: JSON.stringify({
         chat_id: user_id,
         text,
-        parse_mode: 'MarkdownV2',
-        ...(inlineKeyboard ? { reply_markup: inlineKeyboard } : {}),
+        ...(keyboard ? { reply_markup: keyboard } : {}),
       }),
     });
 
     const tgData = await tgRes.json();
+
     if (!tgData.ok) {
-      console.error('TG sendMessage error:', tgData.description, '\nText:', text);
       return res.status(500).json({ error: tgData.description });
     }
 
@@ -843,8 +839,11 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
     );
     const channels = chResult.rows;
 
-    // Имя владельца для кнопки (может быть null — тогда кнопка не показывается)
+    // Имя владельца для кнопки
     const ownerUsername = net.owner_username || null;
+    if (!ownerUsername) {
+      return res.status(400).json({ error: 'У владельца сетки нет username в Telegram' });
+    }
 
     // Валюта и символ сетки
     const netSym = CURRENCY_SYMBOLS[net.currency || 'RUB'] || '₽';
@@ -871,13 +870,12 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
     };
     const catStr = net.category ? ` · ${catNames[net.category] || net.category}` : '';
 
-    // Для приватных каналов не показываем @числовой-ID
+    // Plain text — без parse_mode
     const chLinesSafe = channels.map(c => {
       const isPriv = /^-?\d+$/.test(String(c.usname));
       return isPriv ? c.name : `${c.name} (@${c.usname})`;
     }).join('\n');
 
-    // Plain text — без parse_mode, спецсимволы в названиях не ломают парсер
     const text =
       `🗂 Сетка каналов: ${net.name}${catStr}\n` +
       `👥 Всего подписчиков: ${totalSubs}\n\n` +
@@ -888,7 +886,7 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
       `💳 Оплата: ${payStr}\n\n` +
       `Напишите владельцу сетки 👇`;
 
-    const inlineKeyboard3 = ownerUsername
+    const keyboard2 = ownerUsername && !/^-?\d+$/.test(ownerUsername)
       ? { inline_keyboard: [[{ text: '✍️ Написать владельцу сетки', url: `https://t.me/${ownerUsername}` }]] }
       : undefined;
 
@@ -898,16 +896,12 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
       body: JSON.stringify({
         chat_id: user_id,
         text,
-        // Без parse_mode = plain text, никаких проблем со спецсимволами
-        ...(inlineKeyboard3 ? { reply_markup: inlineKeyboard3 } : {}),
+        ...(keyboard2 ? { reply_markup: keyboard2 } : {}),
       }),
     });
 
     const tgData = await tgRes.json();
-    if (!tgData.ok) {
-      console.error('send-network-message TG error:', tgData.description);
-      return res.status(500).json({ error: tgData.description });
-    }
+    if (!tgData.ok) return res.status(500).json({ error: tgData.description });
 
     res.json({ ok: true });
   } catch (err) {
