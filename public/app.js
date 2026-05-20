@@ -140,7 +140,7 @@ function showPage(name) {
   const navEl = document.getElementById('nav-' + name);
   if (navEl) navEl.classList.add('active');
   showFavPage = false;
-  if (name === 'search')   { doSearch(); loadAndRenderNetworks(); }
+  if (name === 'search')   { doSearch(); }
   if (name === 'home')     renderHome('all');
   if (name === 'settings') initSettings();
   if (name === 'manage')   renderManagePage();
@@ -295,7 +295,6 @@ async function doSearch() {
 
   if (currentSort === 'subs')  data = [...data].sort((a,b) => b.subs - a.subs);
   if (currentSort === 'price') data = [...data].sort((a,b) => a.price - b.price);
-  if (currentSort === 'er')    data = [...data].sort((a,b) => (b.er||0) - (a.er||0));
 
   const list = document.getElementById('searchList');
   if (list) {
@@ -622,7 +621,24 @@ function setSort(el) {
   document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
   currentSort = el.dataset.sort;
-  doSearch();
+
+  const netPanel = document.getElementById('networkSearchResults');
+  const chList   = document.getElementById('searchList');
+  const resInfo  = document.querySelector('.search-results-info');
+
+  if (currentSort === 'networks') {
+    // Показываем сетки, скрываем список каналов
+    if (netPanel)  netPanel.style.display  = 'block';
+    if (chList)    chList.style.display    = 'none';
+    if (resInfo)   resInfo.style.display   = 'none';
+    loadAndRenderNetworks();
+  } else {
+    // Показываем каналы, скрываем сетки
+    if (netPanel)  netPanel.style.display  = 'none';
+    if (chList)    chList.style.display    = 'block';
+    if (resInfo)   resInfo.style.display   = 'flex';
+    doSearch();
+  }
 }
 
 function setFcat(el) {
@@ -1809,6 +1825,59 @@ async function deleteNetwork(netId, name) {
 
 // ── Settings init ──────────────────────────────────────────────────────────────
 const settings = JSON.parse(localStorage.getItem('adhub_settings') || '{"notifNew":true,"notifCollab":true,"notifPrice":false}');
+
+
+// ── Отправить все каналы и сетки себе в бота ─────────────────────────────────
+async function sendMyChannelsToBot() {
+  const user = tg?.initDataUnsafe?.user;
+  if (!user?.id) { showToast('⚠️ Откройте через бота', 'error'); return; }
+
+  const result = await apiFetch('/send-my-channels', {
+    method: 'POST',
+    body: JSON.stringify({ user_id: user.id }),
+  });
+
+  if (result?.ok) {
+    if (result.empty) {
+      showToast('У вас пока нет каналов и сеток', '');
+    } else {
+      showToast('📨 Отправлено в бота!', 'success');
+      if (tg) tg.HapticFeedback?.notificationOccurred('success');
+    }
+  } else {
+    showToast(`❌ ${result?.error || 'Ошибка'}`, 'error');
+  }
+}
+
+// ── Поделиться ссылкой ───────────────────────────────────────────────────────
+async function shareMyChannels() {
+  const user = tg?.initDataUnsafe?.user;
+  if (!user?.id) { showToast('⚠️ Откройте через бота', 'error'); return; }
+
+  const result = await apiFetch('/share-link', {
+    method: 'POST',
+    body: JSON.stringify({ user_id: user.id }),
+  });
+
+  if (!result?.ok) { showToast(`❌ ${result?.error || 'Ошибка'}`, 'error'); return; }
+
+  const link = result.link;
+
+  // Используем Telegram share если доступно
+  if (tg?.openTelegramLink) {
+    const shareText = encodeURIComponent('Посмотри мои каналы и сетки в AdsWay 📢');
+    tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${shareText}`);
+  } else {
+    // Fallback — копируем в буфер
+    try {
+      await navigator.clipboard.writeText(link);
+      showToast('🔗 Ссылка скопирована!', 'success');
+    } catch {
+      showToast(`🔗 ${link}`, 'success');
+    }
+  }
+  if (tg) tg.HapticFeedback?.notificationOccurred('success');
+}
 
 async function initSettings() {
   const user = tg?.initDataUnsafe?.user;

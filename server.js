@@ -355,7 +355,7 @@ app.delete('/api/channels/:id', requireTgAuth, async (req, res) => {
       return res.status(401).json({ error: 'Не авторизован' });
     }
 
-    // Удаляем канал из всех сеток автоматически (ON DELETE CASCADE на network_channels)
+    // CASCADE удаляет канал из network_channels автоматически
     const result = await pool.query(
       'DELETE FROM channels WHERE id = $1 AND owner_id = $2 RETURNING *',
       [id, parseInt(user_id)]
@@ -364,6 +364,15 @@ app.delete('/api/channels/:id', requireTgAuth, async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(403).json({ error: 'Нет доступа или канал не найден' });
     }
+
+    // Удаляем пустые сетки этого пользователя (в которых не осталось каналов)
+    await pool.query(`
+      DELETE FROM channel_networks cn
+      WHERE cn.owner_id = $1
+        AND NOT EXISTS (
+          SELECT 1 FROM network_channels nc WHERE nc.network_id = cn.id
+        )
+    `, [parseInt(user_id)]);
 
     res.json({ message: 'Канал удалён' });
   } catch (err) {
@@ -758,14 +767,9 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
     const allCurrs = [ownerCurrency, ...(Array.isArray(extras) ? extras.filter(c => c !== ownerCurrency) : [])];
     const payStr = allCurrs.map(c => CURRENCY_SYMBOLS[c] || c).join(', ');
 
-    // Plain text — без parse_mode, спецсимволы в названиях (|, /, *, _) не ломают
-    const isPrivateChannel = /^-?\d+$/.test(String(ch.usname));
-    const channelLine = isPrivateChannel
-      ? `📢 ${ch.name} (приватный канал)`
-      : `📢 ${ch.name}\n@${ch.usname}`;
-
     const text =
-      channelLine + `\n\n` +
+      `📢 *${ch.name}*\n` +
+      `@${ch.usname}\n\n` +
       `💰 Реклама 24ч: ${price24}\n` +
       `💰 Реклама 48ч: ${price48}\n` +
       `💰 Реклама 72ч: ${price72}\n` +
@@ -774,18 +778,18 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
       `💳 Оплата: ${payStr}\n\n` +
       `Напишите администратору канала 👇`;
 
-    // Кнопка только если у владельца есть username
-    const keyboard = ownerUsername && !/^-?\d+$/.test(ownerUsername)
-      ? { inline_keyboard: [[{ text: '✍️ Написать администратору', url: `https://t.me/${ownerUsername}` }]] }
-      : undefined;
-
     const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: user_id,
         text,
-        ...(keyboard ? { reply_markup: keyboard } : {}),
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '✍️ Написать администратору', url: `https://t.me/${ownerUsername}` }
+          ]]
+        }
       }),
     });
 
@@ -870,25 +874,15 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
     };
     const catStr = net.category ? ` · ${catNames[net.category] || net.category}` : '';
 
-    // Plain text — без parse_mode
-    const chLinesSafe = channels.map(c => {
-      const isPriv = /^-?\d+$/.test(String(c.usname));
-      return isPriv ? c.name : `${c.name} (@${c.usname})`;
-    }).join('\n');
-
     const text =
-      `🗂 Сетка каналов: ${net.name}${catStr}\n` +
+      `🗂 *Сетка каналов: ${net.name}*${catStr}\n` +
       `👥 Всего подписчиков: ${totalSubs}\n\n` +
       `💰 Цена рекламы в сетке:\n` +
       `   24ч: ${fmtP(net.pricead_24)} · 48ч: ${fmtP(net.pricead_48)}\n` +
       `   72ч: ${fmtP(net.pricead_72)} · Навсегда: ${fmtP(net.pricead_all)}\n\n` +
-      `📋 Каналы в сетке:\n${chLinesSafe}\n\n` +
+      `📋 Каналы в сетке:\n\n${chLines}\n\n` +
       `💳 Оплата: ${payStr}\n\n` +
       `Напишите владельцу сетки 👇`;
-
-    const keyboard2 = ownerUsername && !/^-?\d+$/.test(ownerUsername)
-      ? { inline_keyboard: [[{ text: '✍️ Написать владельцу сетки', url: `https://t.me/${ownerUsername}` }]] }
-      : undefined;
 
     const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: 'POST',
@@ -896,7 +890,12 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
       body: JSON.stringify({
         chat_id: user_id,
         text,
-        ...(keyboard2 ? { reply_markup: keyboard2 } : {}),
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '✍️ Написать владельцу сетки', url: `https://t.me/${ownerUsername}` }
+          ]]
+        }
       }),
     });
 
@@ -908,6 +907,97 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
     console.error('send-network-message error:', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+
+// ===== SEND MY CHANNELS TO BOT =====
+app.post('/api/send-my-channels', requireTgAuth, async (req, res) => {
+  const { user_id } = req.body;
+  if (!user_id) return res.status(401).json({ error: 'Не авторизован' });
+
+  try {
+    // Каналы пользователя
+    const chRes = await pool.query(
+      `SELECT c.*, COALESCE(u.currency_primary,'RUB') as cur
+       FROM channels c
+       JOIN user_admin ua ON c.id = ua.channel_id
+       LEFT JOIN users u ON c.owner_id = u.id
+       WHERE ua.user_id = $1
+       ORDER BY c.subscribers DESC`,
+      [user_id]
+    );
+    const channels = chRes.rows;
+
+    // Сетки пользователя с каналами
+    const netRes = await pool.query(
+      `SELECT * FROM channel_networks WHERE owner_id = $1 ORDER BY created_at DESC`,
+      [user_id]
+    );
+    const nets = [];
+    for (const net of netRes.rows) {
+      const nc = await pool.query(
+        `SELECT c.name, c.usname FROM channels c
+         JOIN network_channels nc ON c.id = nc.channel_id
+         WHERE nc.network_id = $1`, [net.id]
+      );
+      nets.push({ ...net, channels: nc.rows });
+    }
+
+    if (channels.length === 0 && nets.length === 0) {
+      return res.json({ ok: true, empty: true });
+    }
+
+    const CURR = { RUB:'₽', KZT:'₸', TON:'ꘜ', USD:'$', STARS:'⭐️' };
+    const fmtP = (p, sym) => (p && p !== '-') ? `${p}${sym}` : '—';
+
+    let text = '📋 Ваши каналы в AdsWay\n\n';
+    for (const ch of channels) {
+      const sym = CURR[ch.cur] || '₽';
+      const isPriv = /^-?\d+$/.test(String(ch.usname));
+      const chRef = isPriv ? ch.name : `${ch.name} (@${ch.usname})`;
+      text += `📢 ${chRef}\n`;
+      text += `   👥 ${ch.subscribers || 0} подп.\n`;
+      text += `   💰 24ч: ${fmtP(ch.pricead_24,sym)} · 48ч: ${fmtP(ch.pricead_48,sym)} · 72ч: ${fmtP(ch.pricead_72,sym)} · ∞: ${fmtP(ch.pricead_all,sym)}\n\n`;
+    }
+
+    if (nets.length > 0) {
+      text += '\n🗂 Ваши сетки каналов\n\n';
+      for (const net of nets) {
+        const sym = CURR[net.currency || 'RUB'] || '₽';
+        const totalSubs = net.channels.reduce((s,c) => s + 0, 0);
+        text += `🗂 ${net.name}\n`;
+        text += `   💰 24ч: ${fmtP(net.pricead_24,sym)} · ∞: ${fmtP(net.pricead_all,sym)}\n`;
+        const chList = net.channels.map(c => {
+          const isPriv = /^-?\d+$/.test(String(c.usname));
+          return isPriv ? c.name : `@${c.usname}`;
+        }).join(', ');
+        if (chList) text += `   📢 ${chList}\n`;
+        text += '\n';
+      }
+    }
+
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: user_id, text }),
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('send-my-channels error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== SHARE LINK — generate / resolve =====
+
+// Создать share-ссылку (возвращает deeplink)
+app.post('/api/share-link', requireTgAuth, async (req, res) => {
+  const { user_id } = req.body;
+  if (!user_id) return res.status(401).json({ error: 'Не авторизован' });
+  // Ссылка вида https://t.me/adsway_bot?start=share_USER_ID
+  const link = `https://t.me/adsway_bot?start=share_${user_id}`;
+  res.json({ ok: true, link });
 });
 
 // ===== COLLAB =====

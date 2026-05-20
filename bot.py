@@ -282,7 +282,7 @@ async def handle_webapp_data(message: types.Message):
       
 # ── Запуск ────────────────────────────────────────────────────────────────────
 async def main():
-    interval_hours = 8
+    interval_hours = 12
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
         update_all_subscribers,
@@ -436,3 +436,97 @@ if __name__ == "__main__":
     finally:
         db.close()
         logger.info("🔌 Соединение с БД закрыто")
+
+# ── Вспомогательная функция — отправить каналы и сетки пользователя ──────────
+def get_user_data_text(owner_id: int):
+    """Собирает текст со всеми каналами и сетками пользователя owner_id."""
+    CURR = {"RUB": "₽", "KZT": "₸", "TON": "ꘜ", "USD": "$", "STARS": "⭐️"}
+
+    def fmt_p(val, sym):
+        if not val or val == "-":
+            return "—"
+        return f"{val}{sym}"
+
+    try:
+        c.execute(
+            """SELECT ch.name, ch.usname, ch.subscribers,
+                      ch.pricead_24, ch.pricead_48, ch.pricead_72, ch.pricead_all,
+                      COALESCE(u.currency_primary, 'RUB') as cur
+               FROM channels ch
+               JOIN user_admin ua ON ch.id = ua.channel_id
+               LEFT JOIN users u ON ch.owner_id = u.id
+               WHERE ua.user_id = %s
+               ORDER BY ch.subscribers DESC""",
+            (owner_id,)
+        )
+        channels = c.fetchall()
+    except Exception:
+        channels = []
+
+    try:
+        c.execute(
+            "SELECT * FROM channel_networks WHERE owner_id = %s ORDER BY created_at DESC",
+            (owner_id,)
+        )
+        nets_raw = c.fetchall()
+        col_names = [d[0] for d in c.description]
+        nets = [dict(zip(col_names, row)) for row in nets_raw]
+        for net in nets:
+            c.execute(
+                """SELECT ch.name, ch.usname FROM channels ch
+                   JOIN network_channels nc ON ch.id = nc.channel_id
+                   WHERE nc.network_id = %s""",
+                (net["id"],)
+            )
+            net["channels"] = c.fetchall()
+    except Exception:
+        nets = []
+
+    if not channels and not nets:
+        return None
+
+    text = "📋 Каналы в AdsWay\n\n"
+    for row in channels:
+        name, usname, subs, p24, p48, p72, pall, cur = row
+        sym = CURR.get(cur, "₽")
+        is_priv = str(usname).lstrip("-").isdigit()
+        ref = name if is_priv else f"{name} (@{usname})"
+        text += f"📢 {ref}\n"
+        text += f"   👥 {subs or 0} подп.\n"
+        text += f"   💰 24ч: {fmt_p(p24,sym)} · 48ч: {fmt_p(p48,sym)} · 72ч: {fmt_p(p72,sym)} · ∞: {fmt_p(pall,sym)}\n\n"
+
+    if nets:
+        text += "\n🗂 Сетки каналов\n\n"
+        for net in nets:
+            sym = CURR.get(net.get("currency", "RUB"), "₽")
+            text += f"🗂 {net['name']}\n"
+            text += f"   💰 24ч: {fmt_p(net.get('pricead_24'), sym)} · ∞: {fmt_p(net.get('pricead_all'), sym)}\n"
+            ch_refs = []
+            for ch_name, ch_usname in net.get("channels", []):
+                ch_refs.append(ch_name if str(ch_usname).lstrip("-").isdigit() else f"@{ch_usname}")
+            if ch_refs:
+                text += f"   📢 {', '.join(ch_refs)}\n"
+            text += "\n"
+
+    return text
+
+
+# ── Обработчик share deeplink ─────────────────────────────────────────────────
+@dp.message(Command("start"))
+async def cmd_start_share(msg: types.Message):
+    """Перехватывает /start share_USER_ID — отправляет каналы чужого пользователя."""
+    parts = msg.text.split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].startswith("share_"):
+        return  # не наш deeplink — пропускаем (обработает CommandStart выше)
+
+    try:
+        shared_uid = int(parts[1].split("_", 1)[1])
+    except (ValueError, IndexError):
+        return
+
+    ensure_user(msg.from_user)
+    text = get_user_data_text(shared_uid)
+    if text:
+        await msg.answer(f"📢 Каналы и сетки пользователя:\n\n{text}")
+    else:
+        await msg.answer("У этого пользователя пока нет каналов в AdsWay.")

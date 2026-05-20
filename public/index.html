@@ -96,7 +96,7 @@
         <div class="filter-chip active" data-sort="default" onclick="setSort(this)">⚡ По умолчанию</div>
         <div class="filter-chip" data-sort="subs"  onclick="setSort(this)">👥 По подписчикам</div>
         <div class="filter-chip" data-sort="price" onclick="setSort(this)">💰 По цене</div>
-        <div class="filter-chip" data-sort="er"    onclick="setSort(this)">📊 По ER</div>
+        <div class="filter-chip" data-sort="networks" onclick="setSort(this)">🗂 Сетки каналов</div>
         <div class="filter-chip" id="filterToggle" onclick="toggleFilters()">⚙️ Фильтры</div>
       </div>
 
@@ -152,17 +152,7 @@
 
       </div>
 
-      <!-- Поиск по сеткам — отдельный блок вне фильтров -->
-      <div class="network-search-wrap">
-        <div class="filter-label" style="margin-bottom:6px">🗂 Мои сетки каналов</div>
-        <div class="search-box" style="margin-bottom:0">
-          <span class="search-icon">🗂</span>
-          <input class="search-input" id="networkSearch" placeholder="Фильтр по названию или каналу…" oninput="onNetworkSearch()">
-        </div>
-      </div>
-
-      <!-- Результаты поиска по сеткам — рендерятся здесь отдельно -->
-      <div id="networkSearchResults"></div>
+      <div id="networkSearchResults" style="display:none"></div>
 
       <div class="search-results-info">
         <span id="resultsInfo">Загрузка…</span>
@@ -287,6 +277,26 @@
       <p class="section-title">Валюта отображения</p>
       <div id="currencySettingsBlock">
         <!-- JS вставит настройки валют -->
+      </div>
+
+      <p class="section-title">📤 Мои каналы и сетки</p>
+      <div class="settings-section">
+        <div class="setting-item" onclick="sendMyChannelsToBot()">
+          <div class="set-icon purple">📨</div>
+          <div class="set-text">
+            <div class="set-title">Отправить себе в бота</div>
+            <div class="set-sub">Получить список всех каналов и сеток</div>
+          </div>
+          <div class="set-right">›</div>
+        </div>
+        <div class="setting-item" onclick="shareMyChannels()">
+          <div class="set-icon green">🔗</div>
+          <div class="set-text">
+            <div class="set-title">Поделиться ссылкой</div>
+            <div class="set-sub">Открывший получит ваши каналы и сетки</div>
+          </div>
+          <div class="set-right">›</div>
+        </div>
       </div>
 
       <p class="section-title">Аккаунт</p>

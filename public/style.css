@@ -331,9 +331,10 @@ body::before {
 
 .range-row { display: flex; gap: 10px; }
 .range-input {
-  flex: 1; padding: 8px 12px; background: var(--bg3);
+  flex: 1; min-width: 0; padding: 8px 12px; background: var(--bg3);
   border: 1px solid var(--border); border-radius: var(--r2);
   color: var(--text); font-size: 13px; font-family: 'Inter', sans-serif; outline: none;
+  width: 0; /* prevents flex overflow */
 }
 .range-input:focus { border-color: var(--accent); }
 
