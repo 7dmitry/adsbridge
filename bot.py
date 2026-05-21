@@ -496,10 +496,10 @@ def get_user_data_text(owner_id: int):
         text += f"   💰 24ч: {fmt_p(p24,sym)} · 48ч: {fmt_p(p48,sym)} · 72ч: {fmt_p(p72,sym)} · ∞: {fmt_p(pall,sym)}\n\n"
 
     if nets:
-        text += "\n🗂 Сетки каналов\n\n"
+        text += "\n📋 Сетки каналов\n\n"
         for net in nets:
             sym = CURR.get(net.get("currency", "RUB"), "₽")
-            text += f"🗂 {net['name']}\n"
+            text += f"📋 {net['name']}\n"
             text += f"   💰 24ч: {fmt_p(net.get('pricead_24'), sym)} · ∞: {fmt_p(net.get('pricead_all'), sym)}\n"
             ch_refs = []
             for ch_name, ch_usname in net.get("channels", []):

@@ -875,7 +875,7 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
     const catStr = net.category ? ` · ${catNames[net.category] || net.category}` : '';
 
     const text =
-      `🗂 *Сетка каналов: ${net.name}*${catStr}\n` +
+      `📋 *Сетка каналов: ${net.name}*${catStr}\n` +
       `👥 Всего подписчиков: ${totalSubs}\n\n` +
       `💰 Цена рекламы в сетке:\n` +
       `   24ч: ${fmtP(net.pricead_24)} · 48ч: ${fmtP(net.pricead_48)}\n` +
@@ -961,11 +961,11 @@ app.post('/api/send-my-channels', requireTgAuth, async (req, res) => {
     }
 
     if (nets.length > 0) {
-      text += '\n🗂 Ваши сетки каналов\n\n';
+      text += '\n📋 Ваши сетки каналов\n\n';
       for (const net of nets) {
         const sym = CURR[net.currency || 'RUB'] || '₽';
         const totalSubs = net.channels.reduce((s,c) => s + 0, 0);
-        text += `🗂 ${net.name}\n`;
+        text += `📋 ${net.name}\n`;
         text += `   💰 24ч: ${fmtP(net.pricead_24,sym)} · ∞: ${fmtP(net.pricead_all,sym)}\n`;
         const chList = net.channels.map(c => {
           const isPriv = /^-?\d+$/.test(String(c.usname));

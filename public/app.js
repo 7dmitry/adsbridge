@@ -349,7 +349,7 @@ function _renderNetworkSearchShell() {
   nr.innerHTML = `
     <!-- Вкладки -->
     <div class="net-tabs">
-      <div class="net-tab ${_netTab==='my' ?'active':''}" onclick="switchNetTab('my')">🗂 Мои сетки</div>
+      <div class="net-tab ${_netTab==='my' ?'active':''}" onclick="switchNetTab('my')">📋 Мои сетки</div>
       <div class="net-tab ${_netTab==='all'?'active':''}" onclick="switchNetTab('all')">🌐 Все сетки</div>
     </div>
 
@@ -461,7 +461,7 @@ function buildNetworkCard(net) {
   return `
   <div class="ch-card" onclick="openNetworkModal(${net.id})" style="cursor:pointer">
     <div class="ch-top">
-      <div class="ch-avatar" style="background:rgba(108,99,255,.15);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🗂</div>
+      <div class="ch-avatar" style="background:rgba(108,99,255,.15);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">📋</div>
       <div class="ch-info">
         <div class="ch-name-row">
           <span class="ch-name">${net.name}</span>
@@ -535,7 +535,7 @@ function openNetworkModal(netId) {
 
   document.getElementById('networkModalContent').innerHTML = `
     <div class="modal-ch-header">
-      <div class="modal-avatar" style="background:rgba(108,99,255,.18);display:flex;align-items:center;justify-content:center;font-size:32px">🗂</div>
+      <div class="modal-avatar" style="background:rgba(108,99,255,.18);display:flex;align-items:center;justify-content:center;font-size:32px">📋</div>
       <div>
         <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;display:flex;align-items:center;gap:7px">
           ${net.name}
@@ -1515,7 +1515,7 @@ function renderNetworkSettingsUI() {
             return `
             <div class="manage-ch-item" style="margin-bottom:10px">
               <div class="manage-ch-info" style="flex:1">
-                <div class="manage-ch-name">🗂 ${net.name}</div>
+                <div class="manage-ch-name">📋 ${net.name}</div>
                 <div class="manage-ch-meta">${(net.channels||[]).length} каналов · ${sym} ${net.currency||'RUB'}</div>
                 <div class="manage-ch-prices">
                   ${prices.map(p => `<span class="tag">${p}</span>`).join('')}
