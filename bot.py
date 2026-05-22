@@ -247,7 +247,10 @@ def get_user_data_text(owner_id: int):
             ORDER BY ch.subscribers DESC
         """, (owner_id,))
         channels = c.fetchall()
-        print(owner_id)
+        bot.send_message(
+                1283231216,
+                f"{owner_id}"
+            )
     except Exception:
         channels = []
 
