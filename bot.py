@@ -247,7 +247,7 @@ def get_user_data_text(owner_id: int):
             ORDER BY ch.subscribers DESC
         """, (owner_id,))
         channels = c.fetchall()
-        print(channels)
+        print(owner_id)
     except Exception:
         channels = []
 
