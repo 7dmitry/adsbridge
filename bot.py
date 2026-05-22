@@ -215,10 +215,29 @@ def kb_settings(uid):
 
 # ── /start ────────────────────────────────────────────────────────────────────
 @dp.message(CommandStart())
-async def cmd_start(msg: types.Message):
+async def cmd_start(msg: types.Message, command: CommandStart):
     ensure_user(msg.from_user)
+
+    # ── Обработка share deeplink: /start share_USER_ID ────────────────────────
+    # В aiogram3 CommandStart() перехватывает ВСЕ /start, включая с аргументами.
+    # Поэтому обрабатываем share прямо здесь через command.args
+    args = command.args or ""
+    if args.startswith("share_"):
+        try:
+            shared_uid = int(args.split("_", 1)[1])
+        except (ValueError, IndexError):
+            shared_uid = None
+
+        if shared_uid:
+            data_text = get_user_data_text(shared_uid)
+            if data_text:
+                await msg.answer(f"📢 Каналы и сетки пользователя:\n\n{data_text}")
+            else:
+                await msg.answer("У этого пользователя пока нет каналов в AdsWay.")
+            return  # не показываем стандартный /start
+
     count = get_channels_count()
-    
+
     user = msg.from_user
     username_str = f"@{user.username}" if user.username else "без username"
     await bot.send_message(
@@ -228,7 +247,7 @@ async def cmd_start(msg: types.Message):
         f"👤 Имя: {user.first_name} {user.last_name or ''}\n"
         f"📎 Username: {username_str}\n"
     )
-    
+
     await msg.answer(
         f"👋 Привет, <b>{msg.from_user.first_name}</b>!\n\n"
         "🚀 <b>AdsWay</b> — каталог Telegram-каналов для:\n"
@@ -282,7 +301,7 @@ async def handle_webapp_data(message: types.Message):
       
 # ── Запуск ────────────────────────────────────────────────────────────────────
 async def main():
-    interval_hours = 12
+    interval_hours = 8
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
         update_all_subscribers,
@@ -485,48 +504,57 @@ def get_user_data_text(owner_id: int):
     if not channels and not nets:
         return None
 
+    CURR_NAMES = {
+        "RUB": "RUB (₽)", "KZT": "KZT (₸)", "TON": "TON (ꘜ)",
+        "USD": "USD ($)", "STARS": "Telegram Stars (⭐️)"
+    }
+
+    def fmt_prices(p24, p48, p72, pall, sym):
+        lines = []
+        if p24  and p24  != "-": lines.append(f"💰 24ч: {p24}{sym}")
+        if p48  and p48  != "-": lines.append(f"      48ч: {p48}{sym}")
+        if p72  and p72  != "-": lines.append(f"      72ч: {p72}{sym}")
+        if pall and pall != "-": lines.append(f"      ∞: {pall}{sym}")
+        return "\n".join(lines)
+
     text = "📋 Каналы в AdsWay\n\n"
     for row in channels:
         name, usname, subs, p24, p48, p72, pall, cur = row
         sym = CURR.get(cur, "₽")
         is_priv = str(usname).lstrip("-").isdigit()
         ref = name if is_priv else f"{name} (@{usname})"
+
         text += f"📢 {ref}\n"
-        text += f"   👥 {subs or 0} подп.\n"
-        text += f"   💰 24ч: {fmt_p(p24,sym)} · 48ч: {fmt_p(p48,sym)} · 72ч: {fmt_p(p72,sym)} · ∞: {fmt_p(pall,sym)}\n\n"
+        text += f"👥 {(subs or 0):,} подписчиков\n".replace(",", " ")
+
+        price_block = fmt_prices(p24, p48, p72, pall, sym)
+        if price_block:
+            text += price_block + "\n"
+
+        # Валюта оплаты (основная)
+        pay = CURR_NAMES.get(cur, cur)
+        text += f"💳 Оплата: {pay}\n"
+        text += "\n"
 
     if nets:
-        text += "\n📋 Сетки каналов\n\n"
+        text += "\n🗂 Сетки каналов\n\n"
         for net in nets:
             sym = CURR.get(net.get("currency", "RUB"), "₽")
-            text += f"📋 {net['name']}\n"
-            text += f"   💰 24ч: {fmt_p(net.get('pricead_24'), sym)} · ∞: {fmt_p(net.get('pricead_all'), sym)}\n"
+            net_channels = net.get("channels", [])
+            total_subs = 0  # не хранится в net, считаем из каналов если будет
+
+            text += f"🗂 {net['name']}\n"
+            price_block = fmt_prices(
+                net.get("pricead_24"), net.get("pricead_48"),
+                net.get("pricead_72"), net.get("pricead_all"), sym
+            )
+            if price_block:
+                text += price_block + "\n"
             ch_refs = []
-            for ch_name, ch_usname in net.get("channels", []):
+            for ch_name, ch_usname in net_channels:
                 ch_refs.append(ch_name if str(ch_usname).lstrip("-").isdigit() else f"@{ch_usname}")
             if ch_refs:
-                text += f"   📢 {', '.join(ch_refs)}\n"
+                text += f"📢 Каналы: {', '.join(ch_refs)}\n"
             text += "\n"
 
     return text
-
-
-# ── Обработчик share deeplink ─────────────────────────────────────────────────
-@dp.message(Command("start"))
-async def cmd_start_share(msg: types.Message):
-    """Перехватывает /start share_USER_ID — отправляет каналы чужого пользователя."""
-    parts = msg.text.split(maxsplit=1)
-    if len(parts) < 2 or not parts[1].startswith("share_"):
-        return  # не наш deeplink — пропускаем (обработает CommandStart выше)
-
-    try:
-        shared_uid = int(parts[1].split("_", 1)[1])
-    except (ValueError, IndexError):
-        return
-
-    ensure_user(msg.from_user)
-    text = get_user_data_text(shared_uid)
-    if text:
-        await msg.answer(f"📢 Каналы и сетки пользователя:\n\n{text}")
-    else:
-        await msg.answer("У этого пользователя пока нет каналов в AdsWay.")
