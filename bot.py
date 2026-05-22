@@ -213,12 +213,16 @@ def kb_settings(uid):
         [InlineKeyboardButton(text="📤 Экспорт данных",        callback_data="set_exp")],
     ])
 
+# ── Вспомогательная функция ───────────────────────────────────────────────────
 def get_user_data_text(owner_id: int):
-    """Собирает текст со всеми каналами и сетками пользователя owner_id."""
-    CURR = {"RUB": "₽", "KZT": "₸", "TON": "ꘜ", "USD": "$", "STARS": "⭐️"}
-    CURR_NAMES = {
-        "RUB": "RUB (₽)", "KZT": "KZT (₸)", "TON": "TON (ꘜ)",
-        "USD": "USD ($)", "STARS": "Telegram Stars (⭐️)"
+    """Каналы и сетки пользователя owner_id — форматированный текст."""
+    CURR      = {"RUB": "₽", "KZT": "₸", "TON": "ꘜ", "USD": "$", "STARS": "⭐️"}
+    CURR_FULL = {
+        "RUB":   "RUB ₽",
+        "KZT":   "KZT ₸",
+        "TON":   "TON ꘜ",
+        "USD":   "USD $",
+        "STARS": "Telegram Stars ⭐️",
     }
 
     def fmt_prices(p24, p48, p72, pall, sym):
@@ -229,37 +233,38 @@ def get_user_data_text(owner_id: int):
         if pall and pall != "-": lines.append(f"      ∞: {pall}{sym}")
         return "\n".join(lines)
 
+    # Каналы + валюты владельца
     try:
-        c.execute(
-            """SELECT ch.name, ch.usname, ch.subscribers,
-                      ch.pricead_24, ch.pricead_48, ch.pricead_72, ch.pricead_all,
-                      COALESCE(u.currency_primary, 'RUB') as cur
-               FROM channels ch
-               JOIN user_admin ua ON ch.id = ua.channel_id
-               LEFT JOIN users u ON ch.owner_id = u.id
-               WHERE ua.user_id = %s
-               ORDER BY ch.subscribers DESC""",
-            (owner_id,)
-        )
+        c.execute("""
+            SELECT ch.name, ch.usname, ch.subscribers,
+                   ch.pricead_24, ch.pricead_48, ch.pricead_72, ch.pricead_all,
+                   COALESCE(u.currency_primary, 'RUB')     AS cur,
+                   COALESCE(u.currency_extra,  '[]'::text) AS cur_extra
+            FROM channels ch
+            JOIN user_admin ua ON ch.id = ua.channel_id
+            LEFT JOIN users u ON ch.owner_id = u.id
+            WHERE ua.user_id = %s
+            ORDER BY ch.subscribers DESC
+        """, (owner_id,))
         channels = c.fetchall()
     except Exception:
         channels = []
 
+    # Сетки
     try:
         c.execute(
             "SELECT * FROM channel_networks WHERE owner_id = %s ORDER BY created_at DESC",
             (owner_id,)
         )
-        nets_raw = c.fetchall()
+        nets_raw  = c.fetchall()
         col_names = [d[0] for d in c.description]
         nets = [dict(zip(col_names, row)) for row in nets_raw]
         for net in nets:
-            c.execute(
-                """SELECT ch.name, ch.usname FROM channels ch
-                   JOIN network_channels nc ON ch.id = nc.channel_id
-                   WHERE nc.network_id = %s""",
-                (net["id"],)
-            )
+            c.execute("""
+                SELECT ch.name, ch.usname FROM channels ch
+                JOIN network_channels nc ON ch.id = nc.channel_id
+                WHERE nc.network_id = %s
+            """, (net["id"],))
             net["channels"] = c.fetchall()
     except Exception:
         nets = []
@@ -267,11 +272,22 @@ def get_user_data_text(owner_id: int):
     if not channels and not nets:
         return None
 
-    # Способы оплаты — один раз, из валюты первого канала
-    pay_str = ""
+    # Собираем все виды оплаты пользователя (primary + extras) — один раз
+    pay_set = []
     if channels:
-        primary_cur = channels[0][7] if len(channels[0]) > 7 else "RUB"
-        pay_str = CURR_NAMES.get(primary_cur, primary_cur)
+        primary = channels[0][7]   # cur
+        extras_raw = channels[0][8]  # cur_extra (JSON-строка или список)
+        pay_set.append(primary)
+        try:
+            import json as _json
+            extras = _json.loads(extras_raw) if isinstance(extras_raw, str) else (extras_raw or [])
+            if isinstance(extras, list):
+                for e in extras:
+                    if e and e not in pay_set:
+                        pay_set.append(e)
+        except Exception:
+            pass
+    pay_str = ", ".join(CURR_FULL.get(c, c) for c in pay_set if c)
 
     text = "📋 Ваши каналы в AdsWay\n"
     if pay_str:
@@ -279,17 +295,17 @@ def get_user_data_text(owner_id: int):
     text += "\n"
 
     for row in channels:
-        name, usname, subs, p24, p48, p72, pall, cur = row
-        sym = CURR.get(cur, "₽")
-        is_priv = str(usname).lstrip("-").isdigit()
-        ref = name if is_priv else f"{name} (@{usname})"
+        name, usname, subs, p24, p48, p72, pall, cur, _ = row
+        sym      = CURR.get(cur, "₽")
+        is_priv  = str(usname).lstrip("-").isdigit()
+        ref      = name if is_priv else f"{name} (@{usname})"
+        subs_fmt = f"{subs or 0:,}".replace(",", "\u202f")
 
         text += f"📢 {ref}\n"
-        subs_fmt = f"{subs or 0:,}".replace(",", " ")
         text += f"👥 {subs_fmt} подписчиков\n"
-        price_block = fmt_prices(p24, p48, p72, pall, sym)
-        if price_block:
-            text += price_block + "\n"
+        block = fmt_prices(p24, p48, p72, pall, sym)
+        if block:
+            text += block + "\n"
         text += "\n"
 
     if nets:
@@ -297,15 +313,16 @@ def get_user_data_text(owner_id: int):
         for net in nets:
             sym = CURR.get(net.get("currency", "RUB"), "₽")
             text += f"🗂 {net['name']}\n"
-            price_block = fmt_prices(
+            block = fmt_prices(
                 net.get("pricead_24"), net.get("pricead_48"),
                 net.get("pricead_72"), net.get("pricead_all"), sym
             )
-            if price_block:
-                text += price_block + "\n"
-            ch_refs = []
-            for ch_name, ch_usname in net.get("channels", []):
-                ch_refs.append(ch_name if str(ch_usname).lstrip("-").isdigit() else f"@{ch_usname}")
+            if block:
+                text += block + "\n"
+            ch_refs = [
+                ch_name if str(ch_usname).lstrip("-").isdigit() else f"@{ch_usname}"
+                for ch_name, ch_usname in net.get("channels", [])
+            ]
             if ch_refs:
                 text += f"📢 Каналы: {', '.join(ch_refs)}\n"
             text += "\n"
@@ -318,7 +335,7 @@ def get_user_data_text(owner_id: int):
 async def cmd_start(msg: types.Message, command: CommandStart):
     ensure_user(msg.from_user)
 
-    # ── Share deeplink: /start share_USER_ID ─────────────────────────────────
+    # Share deeplink: /start share_USER_ID
     args = command.args or ""
     if args.startswith("share_"):
         try:
@@ -334,7 +351,7 @@ async def cmd_start(msg: types.Message, command: CommandStart):
             return
 
     count = get_channels_count()
-    
+
     user = msg.from_user
     username_str = f"@{user.username}" if user.username else "без username"
     await bot.send_message(
@@ -552,5 +569,3 @@ if __name__ == "__main__":
     finally:
         db.close()
         logger.info("🔌 Соединение с БД закрыто")
-
-# ── Вспомогательная функция — отправить каналы и сетки пользователя ──────────
