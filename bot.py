@@ -213,31 +213,128 @@ def kb_settings(uid):
         [InlineKeyboardButton(text="📤 Экспорт данных",        callback_data="set_exp")],
     ])
 
+def get_user_data_text(owner_id: int):
+    """Собирает текст со всеми каналами и сетками пользователя owner_id."""
+    CURR = {"RUB": "₽", "KZT": "₸", "TON": "ꘜ", "USD": "$", "STARS": "⭐️"}
+    CURR_NAMES = {
+        "RUB": "RUB (₽)", "KZT": "KZT (₸)", "TON": "TON (ꘜ)",
+        "USD": "USD ($)", "STARS": "Telegram Stars (⭐️)"
+    }
+
+    def fmt_prices(p24, p48, p72, pall, sym):
+        lines = []
+        if p24  and p24  != "-": lines.append(f"💰 24ч: {p24}{sym}")
+        if p48  and p48  != "-": lines.append(f"      48ч: {p48}{sym}")
+        if p72  and p72  != "-": lines.append(f"      72ч: {p72}{sym}")
+        if pall and pall != "-": lines.append(f"      ∞: {pall}{sym}")
+        return "\n".join(lines)
+
+    try:
+        c.execute(
+            """SELECT ch.name, ch.usname, ch.subscribers,
+                      ch.pricead_24, ch.pricead_48, ch.pricead_72, ch.pricead_all,
+                      COALESCE(u.currency_primary, 'RUB') as cur
+               FROM channels ch
+               JOIN user_admin ua ON ch.id = ua.channel_id
+               LEFT JOIN users u ON ch.owner_id = u.id
+               WHERE ua.user_id = %s
+               ORDER BY ch.subscribers DESC""",
+            (owner_id,)
+        )
+        channels = c.fetchall()
+    except Exception:
+        channels = []
+
+    try:
+        c.execute(
+            "SELECT * FROM channel_networks WHERE owner_id = %s ORDER BY created_at DESC",
+            (owner_id,)
+        )
+        nets_raw = c.fetchall()
+        col_names = [d[0] for d in c.description]
+        nets = [dict(zip(col_names, row)) for row in nets_raw]
+        for net in nets:
+            c.execute(
+                """SELECT ch.name, ch.usname FROM channels ch
+                   JOIN network_channels nc ON ch.id = nc.channel_id
+                   WHERE nc.network_id = %s""",
+                (net["id"],)
+            )
+            net["channels"] = c.fetchall()
+    except Exception:
+        nets = []
+
+    if not channels and not nets:
+        return None
+
+    # Способы оплаты — один раз, из валюты первого канала
+    pay_str = ""
+    if channels:
+        primary_cur = channels[0][7] if len(channels[0]) > 7 else "RUB"
+        pay_str = CURR_NAMES.get(primary_cur, primary_cur)
+
+    text = "📋 Ваши каналы в AdsWay\n"
+    if pay_str:
+        text += f"💳 Способы оплаты: {pay_str}\n"
+    text += "\n"
+
+    for row in channels:
+        name, usname, subs, p24, p48, p72, pall, cur = row
+        sym = CURR.get(cur, "₽")
+        is_priv = str(usname).lstrip("-").isdigit()
+        ref = name if is_priv else f"{name} (@{usname})"
+
+        text += f"📢 {ref}\n"
+        subs_fmt = f"{subs or 0:,}".replace(",", " ")
+        text += f"👥 {subs_fmt} подписчиков\n"
+        price_block = fmt_prices(p24, p48, p72, pall, sym)
+        if price_block:
+            text += price_block + "\n"
+        text += "\n"
+
+    if nets:
+        text += "\n🗂 Ваши сетки каналов\n\n"
+        for net in nets:
+            sym = CURR.get(net.get("currency", "RUB"), "₽")
+            text += f"🗂 {net['name']}\n"
+            price_block = fmt_prices(
+                net.get("pricead_24"), net.get("pricead_48"),
+                net.get("pricead_72"), net.get("pricead_all"), sym
+            )
+            if price_block:
+                text += price_block + "\n"
+            ch_refs = []
+            for ch_name, ch_usname in net.get("channels", []):
+                ch_refs.append(ch_name if str(ch_usname).lstrip("-").isdigit() else f"@{ch_usname}")
+            if ch_refs:
+                text += f"📢 Каналы: {', '.join(ch_refs)}\n"
+            text += "\n"
+
+    return text
+
+
 # ── /start ────────────────────────────────────────────────────────────────────
 @dp.message(CommandStart())
 async def cmd_start(msg: types.Message, command: CommandStart):
     ensure_user(msg.from_user)
 
-    # ── Обработка share deeplink: /start share_USER_ID ────────────────────────
-    # В aiogram3 CommandStart() перехватывает ВСЕ /start, включая с аргументами.
-    # Поэтому обрабатываем share прямо здесь через command.args
+    # ── Share deeplink: /start share_USER_ID ─────────────────────────────────
     args = command.args or ""
     if args.startswith("share_"):
         try:
             shared_uid = int(args.split("_", 1)[1])
         except (ValueError, IndexError):
             shared_uid = None
-
         if shared_uid:
             data_text = get_user_data_text(shared_uid)
             if data_text:
                 await msg.answer(f"📢 Каналы и сетки пользователя:\n\n{data_text}")
             else:
                 await msg.answer("У этого пользователя пока нет каналов в AdsWay.")
-            return  # не показываем стандартный /start
+            return
 
     count = get_channels_count()
-
+    
     user = msg.from_user
     username_str = f"@{user.username}" if user.username else "без username"
     await bot.send_message(
@@ -247,7 +344,7 @@ async def cmd_start(msg: types.Message, command: CommandStart):
         f"👤 Имя: {user.first_name} {user.last_name or ''}\n"
         f"📎 Username: {username_str}\n"
     )
-
+    
     await msg.answer(
         f"👋 Привет, <b>{msg.from_user.first_name}</b>!\n\n"
         "🚀 <b>AdsWay</b> — каталог Telegram-каналов для:\n"
@@ -457,104 +554,3 @@ if __name__ == "__main__":
         logger.info("🔌 Соединение с БД закрыто")
 
 # ── Вспомогательная функция — отправить каналы и сетки пользователя ──────────
-def get_user_data_text(owner_id: int):
-    """Собирает текст со всеми каналами и сетками пользователя owner_id."""
-    CURR = {"RUB": "₽", "KZT": "₸", "TON": "ꘜ", "USD": "$", "STARS": "⭐️"}
-
-    def fmt_p(val, sym):
-        if not val or val == "-":
-            return "—"
-        return f"{val}{sym}"
-
-    try:
-        c.execute(
-            """SELECT ch.name, ch.usname, ch.subscribers,
-                      ch.pricead_24, ch.pricead_48, ch.pricead_72, ch.pricead_all,
-                      COALESCE(u.currency_primary, 'RUB') as cur
-               FROM channels ch
-               JOIN user_admin ua ON ch.id = ua.channel_id
-               LEFT JOIN users u ON ch.owner_id = u.id
-               WHERE ua.user_id = %s
-               ORDER BY ch.subscribers DESC""",
-            (owner_id,)
-        )
-        channels = c.fetchall()
-    except Exception:
-        channels = []
-
-    try:
-        c.execute(
-            "SELECT * FROM channel_networks WHERE owner_id = %s ORDER BY created_at DESC",
-            (owner_id,)
-        )
-        nets_raw = c.fetchall()
-        col_names = [d[0] for d in c.description]
-        nets = [dict(zip(col_names, row)) for row in nets_raw]
-        for net in nets:
-            c.execute(
-                """SELECT ch.name, ch.usname FROM channels ch
-                   JOIN network_channels nc ON ch.id = nc.channel_id
-                   WHERE nc.network_id = %s""",
-                (net["id"],)
-            )
-            net["channels"] = c.fetchall()
-    except Exception:
-        nets = []
-
-    if not channels and not nets:
-        return None
-
-    CURR_NAMES = {
-        "RUB": "RUB (₽)", "KZT": "KZT (₸)", "TON": "TON (ꘜ)",
-        "USD": "USD ($)", "STARS": "Telegram Stars (⭐️)"
-    }
-
-    def fmt_prices(p24, p48, p72, pall, sym):
-        lines = []
-        if p24  and p24  != "-": lines.append(f"💰 24ч: {p24}{sym}")
-        if p48  and p48  != "-": lines.append(f"      48ч: {p48}{sym}")
-        if p72  and p72  != "-": lines.append(f"      72ч: {p72}{sym}")
-        if pall and pall != "-": lines.append(f"      ∞: {pall}{sym}")
-        return "\n".join(lines)
-
-    text = "📋 Каналы в AdsWay\n\n"
-    for row in channels:
-        name, usname, subs, p24, p48, p72, pall, cur = row
-        sym = CURR.get(cur, "₽")
-        is_priv = str(usname).lstrip("-").isdigit()
-        ref = name if is_priv else f"{name} (@{usname})"
-
-        text += f"📢 {ref}\n"
-        text += f"👥 {(subs or 0):,} подписчиков\n".replace(",", " ")
-
-        price_block = fmt_prices(p24, p48, p72, pall, sym)
-        if price_block:
-            text += price_block + "\n"
-
-        # Валюта оплаты (основная)
-        pay = CURR_NAMES.get(cur, cur)
-        text += f"💳 Оплата: {pay}\n"
-        text += "\n"
-
-    if nets:
-        text += "\n🗂 Сетки каналов\n\n"
-        for net in nets:
-            sym = CURR.get(net.get("currency", "RUB"), "₽")
-            net_channels = net.get("channels", [])
-            total_subs = 0  # не хранится в net, считаем из каналов если будет
-
-            text += f"🗂 {net['name']}\n"
-            price_block = fmt_prices(
-                net.get("pricead_24"), net.get("pricead_48"),
-                net.get("pricead_72"), net.get("pricead_all"), sym
-            )
-            if price_block:
-                text += price_block + "\n"
-            ch_refs = []
-            for ch_name, ch_usname in net_channels:
-                ch_refs.append(ch_name if str(ch_usname).lstrip("-").isdigit() else f"@{ch_usname}")
-            if ch_refs:
-                text += f"📢 Каналы: {', '.join(ch_refs)}\n"
-            text += "\n"
-
-    return text
