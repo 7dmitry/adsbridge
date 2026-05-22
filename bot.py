@@ -215,7 +215,6 @@ def kb_settings(uid):
 
 # ── Вспомогательная функция ───────────────────────────────────────────────────
 def get_user_data_text(owner_id: int):
-    """Каналы и сетки пользователя owner_id — форматированный текст."""
     CURR      = {"RUB": "₽", "KZT": "₸", "TON": "ꘜ", "USD": "$", "STARS": "⭐️"}
     CURR_FULL = {
         "RUB":   "RUB ₽",
@@ -236,16 +235,16 @@ def get_user_data_text(owner_id: int):
     # Каналы + валюты владельца
     try:
         c.execute("""
-        SELECT ch.name, ch.usname, ch.subscribers,
-            ch.pricead_24, ch.pricead_48, ch.pricead_72, ch.pricead_all,
-            COALESCE(u.currency_primary, 'RUB')     AS cur,
-            COALESCE(u.currency_extra,  '[]'::::text) AS cur_extra
-        FROM channels ch
-        JOIN user_admin ua ON ch.id = ua.channel_id
-        LEFT JOIN users u ON ch.owner_id = u.id
-        WHERE ua.user_id = %s
-        ORDER BY ch.subscribers DESC
-            """, (owner_id,))
+            SELECT ch.name, ch.usname, ch.subscribers,
+                   ch.pricead_24, ch.pricead_48, ch.pricead_72, ch.pricead_all,
+                   COALESCE(u.currency_primary, 'RUB')     AS cur,
+                   COALESCE(u.currency_extra,  '[]'::text) AS cur_extra
+            FROM channels ch
+            JOIN user_admin ua ON ch.id = ua.channel_id
+            LEFT JOIN users u ON ch.owner_id = u.id
+            WHERE ua.user_id = %s
+            ORDER BY ch.subscribers DESC
+        """, (owner_id,))
         channels = c.fetchall()
     except Exception:
         channels = []
@@ -309,7 +308,7 @@ def get_user_data_text(owner_id: int):
         text += "\n"
 
     if nets:
-        text += "\n🗂 Cетки каналов\n\n"
+        text += "\n🗂 Ваши сетки каналов\n\n"
         for net in nets:
             sym = CURR.get(net.get("currency", "RUB"), "₽")
             text += f"🗂 {net['name']}\n"
@@ -343,9 +342,9 @@ async def cmd_start(msg: types.Message, command: CommandStart):
         except (ValueError, IndexError):
             shared_uid = None
         if shared_uid:
-            text = get_user_data_text(shared_uid)
-            if text:
-                await msg.answer(f"📢 Каналы и сетки пользователя:\n\n{text}")
+            data_text = get_user_data_text(shared_uid)
+            if data_text:
+                await msg.answer(f"📢 Каналы и сетки пользователя:\n\n{data_text}")
             else:
                 await msg.answer("У этого пользователя пока нет каналов в AdsWay.")
             return
