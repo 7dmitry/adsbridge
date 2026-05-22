@@ -309,7 +309,7 @@ def get_user_data_text(owner_id: int):
         text += "\n"
 
     if nets:
-        text += "\n🗂 Ваши сетки каналов\n\n"
+        text += "\n🗂 Cетки каналов\n\n"
         for net in nets:
             sym = CURR.get(net.get("currency", "RUB"), "₽")
             text += f"🗂 {net['name']}\n"
@@ -343,9 +343,9 @@ async def cmd_start(msg: types.Message, command: CommandStart):
         except (ValueError, IndexError):
             shared_uid = None
         if shared_uid:
-            data_text = get_user_data_text(shared_uid)
-            if data_text:
-                await msg.answer(f"📢 Каналы и сетки пользователя:\n\n{data_text}")
+            text = get_user_data_text(shared_uid)
+            if text:
+                await msg.answer(f"📢 Каналы и сетки пользователя:\n\n{text}")
             else:
                 await msg.answer("У этого пользователя пока нет каналов в AdsWay.")
             return
