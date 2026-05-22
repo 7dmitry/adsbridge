@@ -911,112 +911,30 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
 
 
 // ===== SEND MY CHANNELS TO BOT =====
+// Логика формирования и отправки сообщения перенесена в bot.py.
+// Сервер только проксирует запрос во внутренний HTTP-сервер бота.
 app.post('/api/send-my-channels', requireTgAuth, async (req, res) => {
   const { user_id } = req.body;
   if (!user_id) return res.status(401).json({ error: 'Не авторизован' });
 
   try {
-    // Каналы пользователя
-    const chRes = await pool.query(
-      `SELECT c.*,
-              COALESCE(u.currency_primary,'RUB') as cur,
-              COALESCE(u.currency_extra,'[]'::jsonb) as owner_currency_extra
-       FROM channels c
-       JOIN user_admin ua ON c.id = ua.channel_id
-       LEFT JOIN users u ON c.owner_id = u.id
-       WHERE ua.user_id = $1
-       ORDER BY c.subscribers DESC`,
-      [user_id]
-    );
-    const channels = chRes.rows;
-
-    // Сетки пользователя с каналами
-    const netRes = await pool.query(
-      `SELECT * FROM channel_networks WHERE owner_id = $1 ORDER BY created_at DESC`,
-      [user_id]
-    );
-    const nets = [];
-    for (const net of netRes.rows) {
-      const nc = await pool.query(
-        `SELECT c.name, c.usname FROM channels c
-         JOIN network_channels nc ON c.id = nc.channel_id
-         WHERE nc.network_id = $1`, [net.id]
-      );
-      nets.push({ ...net, channels: nc.rows });
-    }
-
-    if (channels.length === 0 && nets.length === 0) {
-      return res.json({ ok: true, empty: true });
-    }
-
-    const CURR = { RUB:'₽', KZT:'₸', TON:'ꘜ', USD:'$', STARS:'⭐️' };
-    const CURR_NAMES = { RUB:'RUB (₽)', KZT:'KZT (₸)', TON:'TON (ꘜ)', USD:'USD ($)', STARS:'Telegram Stars (⭐️)' };
-    const fmtP = (p, sym) => (p && p !== '-') ? `${p}${sym}` : null;
-
-    let text = '📋 Ваши каналы в AdsWay\n\n';
-    for (const ch of channels) {
-      const sym = CURR[ch.cur] || '₽';
-      const isPriv = /^-?\d+$/.test(String(ch.usname));
-      const chRef = isPriv ? ch.name : `${ch.name} (@${ch.usname})`;
-
-      text += `📢 ${chRef}\n`;
-      text += `👥 ${(ch.subscribers || 0).toLocaleString('ru-RU')} подписчиков\n`;
-
-      // Цены — каждая на отдельной строке, только заполненные
-      const prices = [
-        fmtP(ch.pricead_24, sym)  ? `💰 24ч: ${fmtP(ch.pricead_24, sym)}`  : null,
-        fmtP(ch.pricead_48, sym)  ? `      48ч: ${fmtP(ch.pricead_48, sym)}` : null,
-        fmtP(ch.pricead_72, sym)  ? `      72ч: ${fmtP(ch.pricead_72, sym)}` : null,
-        fmtP(ch.pricead_all, sym) ? `      ∞: ${fmtP(ch.pricead_all, sym)}`  : null,
-      ].filter(Boolean);
-      if (prices.length) text += prices.join('\n') + '\n';
-
-      // Виды оплаты из currency_extra
-      let extras = ch.owner_currency_extra;
-      if (typeof extras === 'string') { try { extras = JSON.parse(extras); } catch { extras = []; } }
-      if (!Array.isArray(extras)) extras = [];
-      const payCurrs = [ch.cur, ...extras.filter(x => x !== ch.cur)];
-      const payStr = payCurrs.map(c => CURR_NAMES[c] || c).join(', ');
-      text += `💳 Оплата: ${payStr}\n`;
-
-      text += '\n';
-    }
-
-    if (nets.length > 0) {
-      text += '\n🗂 Ваши сетки каналов\n\n';
-      for (const net of nets) {
-        const sym = CURR[net.currency || 'RUB'] || '₽';
-        const totalSubs = net.channels.reduce((s, c) => s + (parseInt(c.subscribers) || 0), 0);
-        text += `🗂 ${net.name}\n`;
-        text += `👥 ${totalSubs.toLocaleString('ru-RU')} подписчиков суммарно\n`;
-
-        const np = [
-          fmtP(net.pricead_24,  sym) ? `💰 24ч: ${fmtP(net.pricead_24,  sym)}` : null,
-          fmtP(net.pricead_48,  sym) ? `      48ч: ${fmtP(net.pricead_48,  sym)}` : null,
-          fmtP(net.pricead_72,  sym) ? `      72ч: ${fmtP(net.pricead_72,  sym)}` : null,
-          fmtP(net.pricead_all, sym) ? `      ∞: ${fmtP(net.pricead_all, sym)}` : null,
-        ].filter(Boolean);
-        if (np.length) text += np.join('\n') + '\n';
-
-        const chList = net.channels.map(c => {
-          const isPriv = /^-?\d+$/.test(String(c.usname));
-          return isPriv ? c.name : `@${c.usname}`;
-        }).join(', ');
-        if (chList) text += `📢 Каналы: ${chList}\n`;
-        text += '\n';
-      }
-    }
-
-    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
+    const BOT_URL = process.env.BOT_INTERNAL_URL || 'http://localhost:8081';
+    const resp = await fetch(`${BOT_URL}/internal/send-my-channels`, {
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: user_id, text }),
+      body:    JSON.stringify({ user_id }),
     });
 
-    res.json({ ok: true });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      return res.status(502).json({ error: err.error || 'Ошибка бота' });
+    }
+
+    const data = await resp.json();
+    res.json(data);
   } catch (err) {
-    console.error('send-my-channels error:', err);
-    res.status(500).json({ error: err.message });
+    console.error('send-my-channels proxy error:', err);
+    res.status(500).json({ error: 'Не удалось связаться с ботом' });
   }
 });
 

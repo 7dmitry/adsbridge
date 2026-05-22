@@ -1,6 +1,8 @@
 from email import message
 import asyncio, logging, json, os, random
 from datetime import datetime
+from html import escape as _html_escape
+from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton, WebAppInfo,
@@ -260,11 +262,14 @@ def get_user_data_text(owner_id: int):
         nets = [dict(zip(col_names, row)) for row in nets_raw]
         for net in nets:
             c.execute("""
-                SELECT ch.name, ch.usname FROM channels ch
+                SELECT ch.name, ch.usname, COALESCE(ch.subscribers, 0)
+                FROM channels ch
                 JOIN network_channels nc ON ch.id = nc.channel_id
                 WHERE nc.network_id = %s
             """, (net["id"],))
-            net["channels"] = c.fetchall()
+            rows = c.fetchall()
+            net["channels"]   = [(r[0], r[1]) for r in rows]
+            net["total_subs"] = sum(r[2] for r in rows)
     except Exception:
         nets = []
 
@@ -311,7 +316,10 @@ def get_user_data_text(owner_id: int):
         text += "\n🗂 Ваши сетки каналов\n\n"
         for net in nets:
             sym = CURR.get(net.get("currency", "RUB"), "₽")
+            total_subs = net.get("total_subs", 0)
+            subs_fmt = f"{total_subs:,}".replace(",", "\u202f")
             text += f"🗂 {net['name']}\n"
+            text += f"👥 {subs_fmt} подписчиков суммарно\n"
             block = fmt_prices(
                 net.get("pricead_24"), net.get("pricead_48"),
                 net.get("pricead_72"), net.get("pricead_all"), sym
@@ -344,7 +352,29 @@ async def cmd_start(msg: types.Message, command: CommandStart):
         if shared_uid:
             data_text = get_user_data_text(shared_uid)
             if data_text:
-                await msg.answer(f"📢 Каналы и сетки пользователя:\n\n{data_text}")
+                # Строим ссылку на владельца
+                try:
+                    c.execute(
+                        "SELECT username, first_name FROM users WHERE id = %s",
+                        (shared_uid,)
+                    )
+                    owner_row = c.fetchone()
+                    if owner_row and owner_row[0]:
+                        owner_link = (
+                            f'<a href="https://t.me/{owner_row[0]}">'
+                            f'{owner_row[1] or "пользователя"}</a>'
+                        )
+                    else:
+                        fname = (owner_row[1] if owner_row else None) or "пользователя"
+                        owner_link = f'<a href="tg://user?id={shared_uid}">{fname}</a>'
+                except Exception:
+                    owner_link = "пользователя"
+
+                from html import escape as _escape
+                await msg.answer(
+                    f"📢 Каналы и сетки {owner_link}:\n\n{_escape(data_text)}",
+                    parse_mode=ParseMode.HTML,
+                )
             else:
                 await msg.answer("У этого пользователя пока нет каналов в AdsWay.")
             return
@@ -412,6 +442,35 @@ async def handle_webapp_data(message: types.Message):
     except json.JSONDecodeError:
         await message.answer(f"Получен текст: {raw_data}")
       
+# ── Внутренний HTTP-сервер (для вызова из server.js) ─────────────────────────
+
+async def _http_send_my_channels(request: web.Request) -> web.Response:
+    """
+    POST /internal/send-my-channels
+    Body: { "user_id": 123456 }
+    Формирует список каналов через get_user_data_text и отправляет пользователю.
+    """
+    try:
+        data    = await request.json()
+        user_id = data.get("user_id")
+        if not user_id:
+            return web.json_response({"ok": False, "error": "Нет user_id"}, status=400)
+
+        uid      = int(user_id)
+        text     = get_user_data_text(uid)
+
+        if not text:
+            await bot.send_message(uid, "📋 У вас пока нет каналов и сеток в AdsWay.")
+            return web.json_response({"ok": True, "empty": True})
+
+        await bot.send_message(uid, text)
+        return web.json_response({"ok": True})
+
+    except Exception as e:
+        logger.error(f"_http_send_my_channels error: {e}")
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+
 # ── Запуск ────────────────────────────────────────────────────────────────────
 async def main():
     interval_hours = 8
@@ -425,6 +484,17 @@ async def main():
     )
     scheduler.start()
     logger.info(f"⏰ Планировщик запущен, интервал: каждые {interval_hours}ч")
+
+    # ── Внутренний HTTP-сервер для server.js ─────────────────────────────────
+    bot_port = int(os.getenv("BOT_INTERNAL_PORT", 8081))
+    http_app = web.Application()
+    http_app.router.add_post('/internal/send-my-channels', _http_send_my_channels)
+    runner = web.AppRunner(http_app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', bot_port)
+    await site.start()
+    logger.info(f"🌐 Внутренний HTTP-сервер запущен на порту {bot_port}")
+
     logger.info("🚀 AdsBridge Bot запущен")
     try:
         await dp.start_polling(
@@ -432,6 +502,7 @@ async def main():
             allowed_updates=["message", "callback_query", "chat_member", "my_chat_member"],
         )
     finally:
+        await runner.cleanup()
         scheduler.shutdown(wait=False)
         logger.info("🛑 Бот остановлен")
 
