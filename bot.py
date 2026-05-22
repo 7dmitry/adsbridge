@@ -236,9 +236,9 @@ def get_user_data_text(owner_id: int):
     try:
         c.execute("""
             SELECT ch.name, ch.usname, ch.subscribers,
-                   ch.pricead_24, ch.pricead_48, ch.pricead_72, ch.pricead_all,
-                   COALESCE(u.currency_primary, 'RUB')     AS cur,
-                   COALESCE(u.currency_extra,  '[]'::text) AS cur_extra
+                ch.pricead_24, ch.pricead_48, ch.pricead_72, ch.pricead_all,
+                COALESCE(u.currency_primary, 'RUB')       AS cur,
+                COALESCE(u.currency_extra::text, '[]')     AS cur_extra   -- ✅
             FROM channels ch
             JOIN user_admin ua ON ch.id = ua.channel_id
             LEFT JOIN users u ON ch.owner_id = u.id
