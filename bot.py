@@ -236,21 +236,17 @@ def get_user_data_text(owner_id: int):
     # Каналы + валюты владельца
     try:
         c.execute("""
-            SELECT ch.name, ch.usname, ch.subscribers,
-                   ch.pricead_24, ch.pricead_48, ch.pricead_72, ch.pricead_all,
-                   COALESCE(u.currency_primary, 'RUB')     AS cur,
-                   COALESCE(u.currency_extra,  '[]'::text) AS cur_extra
-            FROM channels ch
-            JOIN user_admin ua ON ch.id = ua.channel_id
-            LEFT JOIN users u ON ch.owner_id = u.id
-            WHERE ua.user_id = %s
-            ORDER BY ch.subscribers DESC
-        """, (owner_id,))
+        SELECT ch.name, ch.usname, ch.subscribers,
+            ch.pricead_24, ch.pricead_48, ch.pricead_72, ch.pricead_all,
+            COALESCE(u.currency_primary, 'RUB')     AS cur,
+            COALESCE(u.currency_extra,  '[]'::::text) AS cur_extra
+        FROM channels ch
+        JOIN user_admin ua ON ch.id = ua.channel_id
+        LEFT JOIN users u ON ch.owner_id = u.id
+        WHERE ua.user_id = %s
+        ORDER BY ch.subscribers DESC
+            """, (owner_id,))
         channels = c.fetchall()
-        bot.send_message(
-                1283231216,
-                f"{owner_id}"
-            )
     except Exception:
         channels = []
 
