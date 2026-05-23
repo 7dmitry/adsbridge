@@ -1957,3 +1957,10 @@ loadStats();
 renderHome('all');
 doSearch();
 initSettings();
+
+// Подставить ID пользователя в ссылку «Отправить себе в бота»
+const _tgUser = tg?.initDataUnsafe?.user;
+if (_tgUser?.id) {
+  const link = document.getElementById('sendToBotLink');
+  if (link) link.href = `https://t.me/adsway_bot?start=share_${_tgUser.id}`;
+}

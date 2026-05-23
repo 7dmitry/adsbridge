@@ -910,34 +910,6 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
 });
 
 
-// ===== SEND MY CHANNELS TO BOT =====
-// Логика формирования и отправки сообщения перенесена в bot.py.
-// Сервер только проксирует запрос во внутренний HTTP-сервер бота.
-app.post('/api/send-my-channels', requireTgAuth, async (req, res) => {
-  const { user_id } = req.body;
-  if (!user_id) return res.status(401).json({ error: 'Не авторизован' });
-
-  try {
-    const BOT_URL = process.env.BOT_INTERNAL_URL || 'http://localhost:8081';
-    const resp = await fetch(`${BOT_URL}/internal/send-my-channels`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ user_id }),
-    });
-
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      return res.status(502).json({ error: err.error || 'Ошибка бота' });
-    }
-
-    const data = await resp.json();
-    res.json(data);
-  } catch (err) {
-    console.error('send-my-channels proxy error:', err);
-    res.status(500).json({ error: 'Не удалось связаться с ботом' });
-  }
-});
-
 // ===== SHARE LINK — generate / resolve =====
 
 // Создать share-ссылку (возвращает deeplink)
