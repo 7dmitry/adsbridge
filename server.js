@@ -997,6 +997,103 @@ app.get('/api/verify-channel/pending/:user_id', requireTgAuth, async (req, res) 
   }
 });
 
+app.post('/api/analytics/track', async (req, res) => {
+  try {
+    const { channel_id, event_type, viewer_id } = req.body;
+ 
+    if (!channel_id || !['view', 'click'].includes(event_type)) {
+      return res.status(400).json({ error: 'Неверные параметры' });
+    }
+ 
+    await pool.query(
+      `INSERT INTO channel_analytics (channel_id, event_type, viewer_id)
+       VALUES ($1, $2, $3)`,
+      [channel_id, event_type, viewer_id || null]
+    );
+ 
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+ 
+// GET /api/analytics/:channelId
+// Возвращает статистику для владельца канала
+// Query: ?user_id=123456  (обязательно, для проверки прав)
+app.get('/api/analytics/:channelId', async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const { user_id } = req.query;
+ 
+    if (!user_id) return res.status(401).json({ error: 'Не авторизован' });
+ 
+    // Проверяем, что user_id — владелец канала
+    const ownerCheck = await pool.query(
+      'SELECT owner_id FROM channels WHERE id = $1',
+      [channelId]
+    );
+    if (ownerCheck.rows.length === 0) return res.status(404).json({ error: 'Канал не найден' });
+    if (String(ownerCheck.rows[0].owner_id) !== String(user_id)) {
+      return res.status(403).json({ error: 'Нет доступа' });
+    }
+ 
+    // Суммарно за всё время
+    const total = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE event_type = 'view')  AS total_views,
+         COUNT(*) FILTER (WHERE event_type = 'click') AS total_clicks
+       FROM channel_analytics
+       WHERE channel_id = $1`,
+      [channelId]
+    );
+ 
+    // За последние 7 дней
+    const week = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE event_type = 'view')  AS week_views,
+         COUNT(*) FILTER (WHERE event_type = 'click') AS week_clicks
+       FROM channel_analytics
+       WHERE channel_id = $1
+         AND created_at >= NOW() - INTERVAL '7 days'`,
+      [channelId]
+    );
+ 
+    // За последние 24 часа
+    const today = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE event_type = 'view')  AS today_views,
+         COUNT(*) FILTER (WHERE event_type = 'click') AS today_clicks
+       FROM channel_analytics
+       WHERE channel_id = $1
+         AND created_at >= NOW() - INTERVAL '24 hours'`,
+      [channelId]
+    );
+ 
+    // График по дням за последние 7 дней
+    const chart = await pool.query(
+      `SELECT
+         DATE(created_at) AS day,
+         COUNT(*) FILTER (WHERE event_type = 'view')  AS views,
+         COUNT(*) FILTER (WHERE event_type = 'click') AS clicks
+       FROM channel_analytics
+       WHERE channel_id = $1
+         AND created_at >= NOW() - INTERVAL '7 days'
+       GROUP BY DATE(created_at)
+       ORDER BY day ASC`,
+      [channelId]
+    );
+ 
+    res.json({
+      total:   total.rows[0],
+      week:    week.rows[0],
+      today:   today.rows[0],
+      chart:   chart.rows,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(process.env.PORT, () => {
   console.log(`✅ Сервер запущен`);
 });

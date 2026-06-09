@@ -670,6 +670,7 @@ function toggleFilters() {
 
 // ── MODAL ─────────────────────────────────────────────────────────────────────
 async function contactChannel(channelId) {
+  trackEvent(channelId, 'click');
   const user = tg?.initDataUnsafe?.user;
 
   if (!user?.id) {
@@ -692,6 +693,8 @@ async function contactChannel(channelId) {
 }
 
 function openModal(id) {
+  trackEvent(id, 'view');
+
   const ch = CHANNELS.find(c => c.id === id);
   if (!ch) return;
 
@@ -1963,4 +1966,112 @@ const _tgUser = tg?.initDataUnsafe?.user;
 if (_tgUser?.id) {
   const link = document.getElementById('sendToBotLink');
   if (link) link.href = `https://t.me/adsway_bot?start=share_${_tgUser.id}`;
+}
+
+// ── Функция трекинга (огонь и забыть) ────────────────────────
+function trackEvent(channelId, eventType) {
+  const viewerId = tg?.initDataUnsafe?.user?.id || null;
+  apiFetch('/analytics/track', {
+    method: 'POST',
+    body: JSON.stringify({
+      channel_id: channelId,
+      event_type:  eventType,
+      viewer_id:   viewerId,
+    }),
+  }).catch(() => {}); // тихий fail — не мешаем UX
+}
+ 
+// ── Загрузить и показать аналитику для одного канала ─────────
+async function showChannelAnalytics(channelId, channelName) {
+  const userId = tg?.initDataUnsafe?.user?.id;
+  if (!userId) return;
+ 
+  // Показываем модальное окно-аналитику
+  const overlay = document.createElement('div');
+  overlay.id = 'analyticsOverlay';
+  overlay.style.cssText = `
+    position:fixed;inset:0;background:rgba(0,0,0,.6);
+    display:flex;align-items:flex-end;justify-content:center;
+    z-index:9999;
+  `;
+  overlay.innerHTML = `
+    <div style="
+      background:var(--card-bg,#1e1e2e);
+      border-radius:20px 20px 0 0;
+      padding:24px 20px 36px;
+      width:100%;max-width:480px;
+      max-height:80vh;overflow-y:auto;
+    ">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+        <div style="font-size:17px;font-weight:700">📊 Аналитика</div>
+        <button onclick="document.getElementById('analyticsOverlay').remove()"
+          style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-secondary,#aaa)">✕</button>
+      </div>
+      <div style="font-size:13px;color:var(--text-secondary,#aaa);margin-bottom:16px">${channelName}</div>
+      <div id="analyticsBody">
+        <div style="text-align:center;padding:32px;color:var(--text-secondary,#aaa)">⏳ Загрузка…</div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+ 
+  // Запрашиваем данные
+  const data = await apiFetch(`/analytics/${channelId}?user_id=${userId}`);
+  const body = document.getElementById('analyticsBody');
+  if (!body) return;
+ 
+  if (!data || data.__error) {
+    body.innerHTML = `<div style="text-align:center;color:#f87171">Ошибка загрузки</div>`;
+    return;
+  }
+ 
+  const { total, week, today, chart } = data;
+ 
+  // Строим мини-график из chart (последние 7 дней)
+  const maxViews = Math.max(...chart.map(d => Number(d.views)), 1);
+  const days = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+  const chartHtml = chart.length
+    ? `<div style="display:flex;align-items:flex-end;gap:6px;height:60px;margin-top:8px">
+        ${chart.map(d => {
+          const h = Math.max(4, Math.round((Number(d.views) / maxViews) * 60));
+          const dayName = days[new Date(d.day).getDay()];
+          return `
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+              <div style="width:100%;background:var(--accent,#6c63ff);border-radius:4px 4px 0 0;height:${h}px;opacity:.85"></div>
+              <div style="font-size:10px;color:var(--text-secondary,#aaa)">${dayName}</div>
+            </div>`;
+        }).join('')}
+       </div>`
+    : `<div style="text-align:center;padding:12px;font-size:13px;color:var(--text-secondary,#aaa)">Данных за 7 дней пока нет</div>`;
+ 
+  body.innerHTML = `
+    <!-- Карточки итогов -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+      ${statCard('👁 За сегодня', today.today_views, 'просмотров')}
+      ${statCard('📩 За сегодня', today.today_clicks, 'кликов')}
+      ${statCard('👁 За 7 дней', week.week_views, 'просмотров')}
+      ${statCard('📩 За 7 дней', week.week_clicks, 'кликов')}
+      ${statCard('👁 Всего', total.total_views, 'просмотров')}
+      ${statCard('📩 Всего', total.total_clicks, 'кликов')}
+    </div>
+ 
+    <!-- Мини-график просмотров -->
+    <div style="background:var(--card-bg2,rgba(255,255,255,.04));border-radius:12px;padding:14px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px">📈 Просмотры за 7 дней</div>
+      ${chartHtml}
+    </div>
+  `;
+}
+ 
+function statCard(label, value, unit) {
+  return `
+    <div style="
+      background:var(--card-bg2,rgba(255,255,255,.04));
+      border-radius:12px;padding:12px 14px;
+    ">
+      <div style="font-size:11px;color:var(--text-secondary,#aaa);margin-bottom:4px">${label}</div>
+      <div style="font-size:24px;font-weight:800;line-height:1">${value ?? 0}</div>
+      <div style="font-size:11px;color:var(--text-secondary,#aaa);margin-top:2px">${unit}</div>
+    </div>`;
 }
