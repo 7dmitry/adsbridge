@@ -694,7 +694,6 @@ async function contactChannel(channelId) {
 
 function openModal(id) {
   trackEvent(id, 'view');
-
   const ch = CHANNELS.find(c => c.id === id);
   if (!ch) return;
 
@@ -1899,6 +1898,7 @@ async function initSettings() {
   renderCollabSettings();
   renderCurrencySettings();
   renderNetworkSettings();
+  renderAnalyticsSettings();
 }
 
 function toggleSetting(key) {
@@ -1967,111 +1967,130 @@ if (_tgUser?.id) {
   const link = document.getElementById('sendToBotLink');
   if (link) link.href = `https://t.me/adsway_bot?start=share_${_tgUser.id}`;
 }
+// ═══════════════════════════════════════════════════════════════
+//  АНАЛИТИКА КАНАЛОВ
+// ═══════════════════════════════════════════════════════════════
 
-// ── Функция трекинга (огонь и забыть) ────────────────────────
+// ── Трекинг просмотров и кликов (огонь-и-забыть) ─────────────
 function trackEvent(channelId, eventType) {
   const viewerId = tg?.initDataUnsafe?.user?.id || null;
   apiFetch('/analytics/track', {
     method: 'POST',
-    body: JSON.stringify({
-      channel_id: channelId,
-      event_type:  eventType,
-      viewer_id:   viewerId,
-    }),
-  }).catch(() => {}); // тихий fail — не мешаем UX
+    body: JSON.stringify({ channel_id: channelId, event_type: eventType, viewer_id: viewerId }),
+  }).catch(() => {});
 }
- 
-// ── Загрузить и показать аналитику для одного канала ─────────
+
+// ── Список каналов в блоке аналитики (страница Настройки) ────
+async function renderAnalyticsSettings() {
+  const block = document.getElementById('analyticsSettingsBlock');
+  if (!block) return;
+
+  const userId = tg?.initDataUnsafe?.user?.id;
+  if (!userId) {
+    block.innerHTML = '<div style="padding:12px;color:var(--text3);font-size:13px">Войдите через бота</div>';
+    return;
+  }
+
+  const channels = await apiFetch(`/user/${userId}/channels`);
+
+  if (!channels || channels.__error || channels.length === 0) {
+    block.innerHTML = '<div style="padding:12px;color:var(--text3);font-size:13px">Нет каналов — добавьте канал в каталог</div>';
+    return;
+  }
+
+  block.innerHTML = `
+    <div class="settings-section">
+      ${channels.map(ch => {
+        const usnameStr = String(ch.usname || '');
+        const isPrivate = /^-?\d{6,}$/.test(usnameStr);
+        const sub = isPrivate
+          ? (ch.subscribers ? Number(ch.subscribers).toLocaleString('ru') + ' подп.' : 'приватный')
+          : '@' + usnameStr + (ch.subscribers ? ' · ' + Number(ch.subscribers).toLocaleString('ru') + ' подп.' : '');
+        return `
+        <div class="setting-item" onclick="showChannelAnalytics(${ch.id}, '${ch.name.replace(/'/g, "\\'")}')">
+          <div class="set-icon purple">📊</div>
+          <div class="set-text">
+            <div class="set-title">${ch.name}</div>
+            <div class="set-sub">${sub}</div>
+          </div>
+          <div class="set-right">›</div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+// ── Модальная шторка с аналитикой канала ─────────────────────
 async function showChannelAnalytics(channelId, channelName) {
   const userId = tg?.initDataUnsafe?.user?.id;
-  if (!userId) return;
- 
-  // Показываем модальное окно-аналитику
+  if (!userId) { showToast('⚠️ Откройте через бота', 'error'); return; }
+
   const overlay = document.createElement('div');
   overlay.id = 'analyticsOverlay';
-  overlay.style.cssText = `
-    position:fixed;inset:0;background:rgba(0,0,0,.6);
-    display:flex;align-items:flex-end;justify-content:center;
-    z-index:9999;
-  `;
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;z-index:9999;';
   overlay.innerHTML = `
-    <div style="
-      background:var(--card-bg,#1e1e2e);
-      border-radius:20px 20px 0 0;
-      padding:24px 20px 36px;
-      width:100%;max-width:480px;
-      max-height:80vh;overflow-y:auto;
-    ">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+    <div style="background:var(--card-bg,#1a1a2e);border-radius:20px 20px 0 0;padding:20px 20px 40px;width:100%;max-width:480px;max-height:82vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <div style="font-size:17px;font-weight:700">📊 Аналитика</div>
-        <button onclick="document.getElementById('analyticsOverlay').remove()"
-          style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-secondary,#aaa)">✕</button>
+        <button onclick="document.getElementById('analyticsOverlay').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3,#888);line-height:1">✕</button>
       </div>
-      <div style="font-size:13px;color:var(--text-secondary,#aaa);margin-bottom:16px">${channelName}</div>
-      <div id="analyticsBody">
-        <div style="text-align:center;padding:32px;color:var(--text-secondary,#aaa)">⏳ Загрузка…</div>
-      </div>
+      <div style="font-size:13px;color:var(--text3,#888);margin-bottom:20px">${channelName}</div>
+      <div id="analyticsBody" style="text-align:center;padding:32px;color:var(--text3,#888)">⏳ Загрузка…</div>
     </div>
   `;
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
- 
-  // Запрашиваем данные
+  if (tg) tg.HapticFeedback?.impactOccurred('light');
+
   const data = await apiFetch(`/analytics/${channelId}?user_id=${userId}`);
   const body = document.getElementById('analyticsBody');
   if (!body) return;
- 
+
   if (!data || data.__error) {
-    body.innerHTML = `<div style="text-align:center;color:#f87171">Ошибка загрузки</div>`;
+    body.innerHTML = '<div style="color:#f87171">❌ Ошибка загрузки данных</div>';
     return;
   }
- 
+
   const { total, week, today, chart } = data;
- 
-  // Строим мини-график из chart (последние 7 дней)
-  const maxViews = Math.max(...chart.map(d => Number(d.views)), 1);
-  const days = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
-  const chartHtml = chart.length
-    ? `<div style="display:flex;align-items:flex-end;gap:6px;height:60px;margin-top:8px">
+
+  const dayNames = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+  const maxV = Math.max(...(chart || []).map(d => Number(d.views)), 1);
+  const chartHtml = chart && chart.length
+    ? `<div style="display:flex;align-items:flex-end;gap:5px;height:56px;margin-top:10px">
         ${chart.map(d => {
-          const h = Math.max(4, Math.round((Number(d.views) / maxViews) * 60));
-          const dayName = days[new Date(d.day).getDay()];
-          return `
-            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
-              <div style="width:100%;background:var(--accent,#6c63ff);border-radius:4px 4px 0 0;height:${h}px;opacity:.85"></div>
-              <div style="font-size:10px;color:var(--text-secondary,#aaa)">${dayName}</div>
-            </div>`;
+          const h = Math.max(3, Math.round((Number(d.views) / maxV) * 56));
+          const dn = dayNames[new Date(d.day + 'T12:00:00').getDay()];
+          return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+            <div style="width:100%;background:var(--accent,#6c63ff);border-radius:3px 3px 0 0;height:${h}px"></div>
+            <div style="font-size:9px;color:var(--text3,#888)">${dn}</div>
+          </div>`;
         }).join('')}
        </div>`
-    : `<div style="text-align:center;padding:12px;font-size:13px;color:var(--text-secondary,#aaa)">Данных за 7 дней пока нет</div>`;
- 
+    : '<div style="font-size:12px;color:var(--text3,#888);padding:8px 0">Данных за 7 дней пока нет</div>';
+
+  body.style.textAlign = '';
+  body.style.padding = '';
   body.innerHTML = `
-    <!-- Карточки итогов -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
-      ${statCard('👁 За сегодня', today.today_views, 'просмотров')}
-      ${statCard('📩 За сегодня', today.today_clicks, 'кликов')}
-      ${statCard('👁 За 7 дней', week.week_views, 'просмотров')}
-      ${statCard('📩 За 7 дней', week.week_clicks, 'кликов')}
-      ${statCard('👁 Всего', total.total_views, 'просмотров')}
-      ${statCard('📩 Всего', total.total_clicks, 'кликов')}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+      ${_aCard('Сегодня','👁', today.today_views, 'просм.')}
+      ${_aCard('Сегодня','📩', today.today_clicks, 'кликов')}
+      ${_aCard('7 дней','👁', week.week_views, 'просм.')}
+      ${_aCard('7 дней','📩', week.week_clicks, 'кликов')}
+      ${_aCard('Всего','👁', total.total_views, 'просм.')}
+      ${_aCard('Всего','📩', total.total_clicks, 'кликов')}
     </div>
- 
-    <!-- Мини-график просмотров -->
-    <div style="background:var(--card-bg2,rgba(255,255,255,.04));border-radius:12px;padding:14px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:4px">📈 Просмотры за 7 дней</div>
+    <div style="background:var(--card2,rgba(255,255,255,.04));border-radius:12px;padding:14px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:2px">📈 Просмотры по дням</div>
       ${chartHtml}
     </div>
   `;
 }
- 
-function statCard(label, value, unit) {
+
+function _aCard(period, icon, value, unit) {
   return `
-    <div style="
-      background:var(--card-bg2,rgba(255,255,255,.04));
-      border-radius:12px;padding:12px 14px;
-    ">
-      <div style="font-size:11px;color:var(--text-secondary,#aaa);margin-bottom:4px">${label}</div>
-      <div style="font-size:24px;font-weight:800;line-height:1">${value ?? 0}</div>
-      <div style="font-size:11px;color:var(--text-secondary,#aaa);margin-top:2px">${unit}</div>
+    <div style="background:var(--card2,rgba(255,255,255,.05));border-radius:12px;padding:12px 14px">
+      <div style="font-size:10px;color:var(--text3,#888);margin-bottom:2px">${icon} ${period}</div>
+      <div style="font-size:26px;font-weight:800;line-height:1.1">${value ?? 0}</div>
+      <div style="font-size:10px;color:var(--text3,#888);margin-top:1px">${unit}</div>
     </div>`;
 }
