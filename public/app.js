@@ -2086,6 +2086,7 @@ async function showChannelAnalytics(channelId, channelName) {
   `;
 }
 
+
 function _aCard(period, icon, value, unit) {
   return `
     <div style="background:var(--card2,rgba(255,255,255,.05));border-radius:12px;padding:12px 14px">
