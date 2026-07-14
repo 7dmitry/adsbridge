@@ -626,7 +626,7 @@ async def on_bot_added_as_admin(event: ChatMemberUpdated):
             INSERT INTO channels (usname, name, subscribers, avatar_url, owner_id,
                                    category, pricead_24, pricead_48, pricead_72,
                                    pricead_all, collab)
-            VALUES (%s, %s, %s, %s, %s, NULL, NULL, NULL, NULL, NULL, FALSE)
+            VALUES (%s, %s, %s, %s, %s, '', NULL, NULL, NULL, NULL, FALSE)
             ON CONFLICT (usname) DO UPDATE
                 SET name        = EXCLUDED.name,
                     subscribers = EXCLUDED.subscribers,
