@@ -140,6 +140,7 @@ function showPage(name) {
   const navEl = document.getElementById('nav-' + name);
   if (navEl) navEl.classList.add('active');
   showFavPage = false;
+  if (name !== 'manage') stopPollNewChannels();
   if (name === 'search')   { doSearch(); }
   if (name === 'home')     renderHome('all');
   if (name === 'settings') initSettings();
@@ -780,25 +781,169 @@ function closeModal(e) {
 
 // ── MANAGE PAGE ───────────────────────────────────────────────────────────────
 async function renderManagePage() {
-  _channelType = 'public'; // сбрасываем при каждом открытии формы
-  document.getElementById('manageFormCard').innerHTML = `
-    <div class="manage-form-title" id="manageFormTitle">➕ Добавить канал</div>
-    <div class="form-group">
-      <label class="form-label">Тип канала *</label>
-      <div class="channel-type-toggle">
-        <button type="button" id="typeBtnPublic" class="type-btn active"
-          onclick="setChannelType('public')">🌐 Публичный</button>
-        <button type="button" id="typeBtnPrivate" class="type-btn"
-          onclick="setChannelType('private')">🔒 Приватный</button>
+  resetForm(); // скрываем форму редактирования и сбрасываем состояние
+
+  const user   = tg?.initDataUnsafe?.user;
+  const userId = user?.id;
+  const list   = document.getElementById('myChannelsList');
+
+  if (!userId) {
+    list.innerHTML = emptyState('Войдите через Telegram', 'Откройте приложение через бота');
+    stopPollNewChannels();
+    return;
+  }
+
+  list.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-title">Загрузка…</div></div>';
+  await loadMyChannelsList(userId);
+
+  // Ждём новые каналы, которые пользователь добавит через Telegram (бот → админ)
+  startPollNewChannels(userId);
+}
+
+// ── Список моих каналов ────────────────────────────────────────────────────────
+async function loadMyChannelsList(userId) {
+  const list = document.getElementById('myChannelsList');
+  const data = await apiFetch(`/user/${userId}/channels`);
+
+  if (!data || data.__error || data.length === 0) {
+    list.innerHTML = emptyState(
+      'Пока нет каналов',
+      'Добавь бота администратором в свой канал — он появится здесь автоматически'
+    );
+    return;
+  }
+
+  const sym = getCurrSymbol(userCurrencyPrimary || 'RUB');
+  list.innerHTML = data.map(ch => {
+    const needsSetup = !ch.category;
+    const prices = [
+      ch.pricead_24  ? `24ч: ${ch.pricead_24  === '-' ? '—' : ch.pricead_24  + sym}` : null,
+      ch.pricead_48  ? `48ч: ${ch.pricead_48  === '-' ? '—' : ch.pricead_48  + sym}` : null,
+      ch.pricead_72  ? `72ч: ${ch.pricead_72  === '-' ? '—' : ch.pricead_72  + sym}` : null,
+      ch.pricead_all ? `∞: ${ch.pricead_all  === '-' ? '—' : ch.pricead_all + sym}` : null,
+    ].filter(Boolean);
+    return `
+    <div class="manage-ch-item ${needsSetup ? 'manage-ch-item-pending' : ''}">
+      <div class="manage-ch-info">
+        <div class="manage-ch-name">
+          ${ch.name}
+          ${needsSetup ? '<span class="tag orange" style="margin-left:6px">Заполните карточку</span>' : ''}
+        </div>
+        <div class="manage-ch-meta">${fmtUsname(ch.usname)} · ${ch.category ? (CAT_NAMES[ch.category] || ch.category) : '— без категории —'} · ${fmt(ch.subscribers || 0)} подп.</div>
+        <div class="manage-ch-prices">
+          ${prices.map(p => `<span class="tag">${p}</span>`).join('')}
+          ${!needsSetup ? `<span class="tag" style="background:rgba(108,99,255,.1);color:var(--accent2)">${sym} ${userCurrencyPrimary || ch.currency || 'RUB'}</span>` : ''}
+        </div>
       </div>
-    </div>
-    <div class="form-group" id="usnameGroup">
-      <label class="form-label">Username или ссылка *</label>
-      <input class="form-input" id="fUsname" placeholder="@channel или t.me/channel">
-    </div>
-    <div class="form-group" id="privateHintGroup" style="display:none">
-      <div class="private-channel-hint">
-        🤖 ID получим автоматически — просто добавь бота в канал как администратора
+      <div class="manage-ch-btns">
+        <button class="ch-btn ch-btn-ghost" onclick="editChannel(${ch.id})">✏️</button>
+        <button class="ch-btn ch-btn-danger" onclick="deleteChannel(${ch.id}, '${ch.name.replace(/'/g,"\\'")}')">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updatePriceLabels() {
+  const sel = document.getElementById('fCurrency');
+  if (!sel) return;
+  const sym = getCurrSymbol(sel.value);
+  const labels = {
+    label24: `Цена 24ч (${sym})`,
+    label48: `Цена 48ч (${sym})`,
+    label72: `Цена 72ч (${sym})`,
+    labelAll: `Цена навсегда (${sym})`,
+  };
+  Object.entries(labels).forEach(([id, txt]) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = txt;
+  });
+}
+
+// ── Поллинг новых автоматически добавленных каналов ───────────────────────────
+let _managePollTimer = null;
+
+function startPollNewChannels(userId) {
+  stopPollNewChannels();
+  _managePollTimer = setInterval(async () => {
+    try {
+      const res = await apiFetch(`/verify-channel/pending/${userId}`);
+      if (res && res.channel_id) {
+        showToast(`✅ Канал "${res.channel_name || res.chat_id}" добавлен! Заполните карточку`, 'success');
+        if (tg) tg.HapticFeedback?.notificationOccurred('success');
+        await loadMyChannelsList(userId);
+        loadStats();
+      }
+    } catch (err) {
+      // сетевые ошибки при поллинге игнорируем
+    }
+  }, 3000);
+}
+
+function stopPollNewChannels() {
+  if (_managePollTimer) {
+    clearInterval(_managePollTimer);
+    _managePollTimer = null;
+  }
+}
+
+// ── Сохранить карточку канала (категория / цены) ──────────────────────────────
+async function submitChannel() {
+  const user = tg?.initDataUnsafe?.user;
+  if (!editingChannelId) return;
+
+  const category = document.getElementById('fCategory')?.value;
+  const price24  = document.getElementById('fPrice24')?.value.trim();
+  const price48  = document.getElementById('fPrice48')?.value.trim();
+  const price72  = document.getElementById('fPrice72')?.value.trim();
+  const priceAll = document.getElementById('fPriceAll')?.value.trim();
+  const currency = document.getElementById('fCurrency')?.value || 'RUB';
+
+  if (!category) {
+    showToast('⚠️ Выберите категорию', 'error');
+    return;
+  }
+
+  const data = await apiFetch(`/channels/${editingChannelId}`);
+  const body = {
+    name: data.name, usname: data.usname, category,
+    pricead_24:  price24  || null,
+    pricead_48:  price48  || null,
+    pricead_72:  price72  || null,
+    pricead_all: priceAll || null,
+    owner_id: user?.id || 0,
+    user_id:  user?.id,
+    currency,
+  };
+  const result = await apiFetch(`/channels/${editingChannelId}`, {
+    method: 'PUT', body: JSON.stringify(body)
+  });
+  if (result && !result.__error) {
+    showToast('✅ Карточка канала сохранена!', 'success');
+    resetForm();
+    renderManagePage();
+    loadStats();
+  } else {
+    showToast(`❌ ${result?.error || result?.message || 'Ошибка'}`, 'error');
+  }
+}
+
+// ── Редактировать карточку канала (категория / цены) ─────────────────────────
+async function editChannel(id) {
+  const data = await apiFetch(`/channels/${id}`);
+  if (!data || data.__error) return;
+
+  editingChannelId = id;
+
+  const card = document.getElementById('manageFormCard');
+  card.innerHTML = `
+    <div class="manage-form-title">✏️ Карточка канала</div>
+    <div class="form-group">
+      <div class="edit-channel-meta">
+        ${data.avatar_url ? `<img src="${data.avatar_url}" class="edit-channel-avatar">` : ''}
+        <div>
+          <div class="edit-channel-name">${data.name}</div>
+          <div class="edit-channel-usname">${fmtUsname(data.usname)}</div>
+        </div>
       </div>
     </div>
     <div class="form-group">
@@ -847,397 +992,21 @@ async function renderManagePage() {
       </div>
     </div>
     <div class="form-actions">
-      <button class="btn btn-secondary" id="formCancelBtn" onclick="resetForm()" style="display:none">Отмена</button>
-      <button class="btn btn-primary" id="formSubmitBtn" onclick="submitChannel()" style="flex:1;justify-content:center">➕ Добавить</button>
+      <button class="btn btn-secondary" onclick="resetForm()">Отмена</button>
+      <button class="btn btn-primary" onclick="submitChannel()" style="flex:1;justify-content:center">💾 Сохранить</button>
     </div>
   `;
 
-  resetForm();
-  const user = tg?.initDataUnsafe?.user;
-  const userId = user?.id;
-  const list = document.getElementById('myChannelsList');
-
-  if (!userId) {
-    list.innerHTML = emptyState('Войдите через Telegram', 'Откройте приложение через бота');
-    return;
-  }
-
-  list.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div><div class="empty-title">Загрузка…</div></div>';
-  const data = await apiFetch(`/user/${userId}/channels`);
-
-  if (!data || data.__error || data.length === 0) {
-    list.innerHTML = emptyState('Нет каналов', 'Добавьте первый канал выше');
-    return;
-  }
-
-  const sym = getCurrSymbol(userCurrencyPrimary || 'RUB');
-  list.innerHTML = data.map(ch => {
-    const prices = [
-      ch.pricead_24  ? `24ч: ${ch.pricead_24  === '-' ? '—' : ch.pricead_24  + sym}` : null,
-      ch.pricead_48  ? `48ч: ${ch.pricead_48  === '-' ? '—' : ch.pricead_48  + sym}` : null,
-      ch.pricead_72  ? `72ч: ${ch.pricead_72  === '-' ? '—' : ch.pricead_72  + sym}` : null,
-      ch.pricead_all ? `∞: ${ch.pricead_all  === '-' ? '—' : ch.pricead_all + sym}` : null,
-    ].filter(Boolean);
-    return `
-    <div class="manage-ch-item">
-      <div class="manage-ch-info">
-        <div class="manage-ch-name">${ch.name}</div>
-        <div class="manage-ch-meta">${fmtUsname(ch.usname)} · ${CAT_NAMES[ch.category] || ch.category} · ${fmt(ch.subscribers || 0)} подп.</div>
-        <div class="manage-ch-prices">
-          ${prices.map(p => `<span class="tag">${p}</span>`).join('')}
-          <span class="tag" style="background:rgba(108,99,255,.1);color:var(--accent2)">${sym} ${userCurrencyPrimary || ch.currency || 'RUB'}</span>
-        </div>
-      </div>
-      <div class="manage-ch-btns">
-        <button class="ch-btn ch-btn-ghost" onclick="editChannel(${ch.id})">✏️</button>
-        <button class="ch-btn ch-btn-danger" onclick="deleteChannel(${ch.id}, '${ch.name.replace(/'/g,"\\'")}')">🗑</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function updatePriceLabels() {
-  const sel = document.getElementById('fCurrency');
-  if (!sel) return;
-  const sym = getCurrSymbol(sel.value);
-  const labels = {
-    label24: `Цена 24ч (${sym})`,
-    label48: `Цена 48ч (${sym})`,
-    label72: `Цена 72ч (${sym})`,
-    labelAll: `Цена навсегда (${sym})`,
-  };
-  Object.entries(labels).forEach(([id, txt]) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = txt;
-  });
-}
-
-// ── Переключатель тип канала ──────────────────────────────────────────────────
-let _channelType = 'public'; // 'public' | 'private'
-
-function setChannelType(type) {
-  _channelType = type;
-  const btnPub  = document.getElementById('typeBtnPublic');
-  const btnPriv = document.getElementById('typeBtnPrivate');
-  const usnameG = document.getElementById('usnameGroup');
-  const hintG   = document.getElementById('privateHintGroup');
-
-  if (type === 'public') {
-    btnPub?.classList.add('active');
-    btnPriv?.classList.remove('active');
-    if (usnameG) usnameG.style.display = '';
-    if (hintG)   hintG.style.display   = 'none';
-  } else {
-    btnPriv?.classList.add('active');
-    btnPub?.classList.remove('active');
-    if (usnameG) usnameG.style.display = 'none';
-    if (hintG)   hintG.style.display   = '';
-  }
-}
-
-// ── Добавить / обновить канал ─────────────────────────────────────────────────
-async function submitChannel() {
-  const user     = tg?.initDataUnsafe?.user;
-  const isPrivate = _channelType === 'private';
-
-  // Нормализация usname для публичного канала
-  let usname = '';
-  if (!isPrivate) {
-    let rawInput = (document.getElementById('fUsname')?.value || '').trim();
-    rawInput = rawInput.replace(/^https?:\/\//i, '').replace(/^t\.me\//i, '');
-    if (rawInput.startsWith('@')) rawInput = rawInput.slice(1);
-    usname = rawInput;
-  }
-
-  const category = document.getElementById('fCategory')?.value;
-  const price24  = document.getElementById('fPrice24')?.value.trim();
-  const price48  = document.getElementById('fPrice48')?.value.trim();
-  const price72  = document.getElementById('fPrice72')?.value.trim();
-  const priceAll = document.getElementById('fPriceAll')?.value.trim();
-  const currency = document.getElementById('fCurrency')?.value || 'RUB';
-
-  if ((!isPrivate && !usname) || !category) {
-    showToast('⚠️ Заполните обязательные поля', 'error');
-    return;
-  }
-
-  if (editingChannelId) {
-    const data = await apiFetch(`/channels/${editingChannelId}`);
-    const body = {
-      name: data.name, usname, category,
-      pricead_24:  price24  || null,
-      pricead_48:  price48  || null,
-      pricead_72:  price72  || null,
-      pricead_all: priceAll || null,
-      owner_id: user?.id || 0,
-      user_id:  user?.id,
-      currency,
-    };
-    const result = await apiFetch(`/channels/${editingChannelId}`, {
-      method: 'PUT', body: JSON.stringify(body)
-    });
-    if (result && !result.__error) {
-      showToast('✅ Канал обновлён!', 'success');
-      resetForm();
-      renderManagePage();
-      loadStats();
-    } else {
-      showToast(`❌ ${result?.error || result?.message || 'Ошибка'}`, 'error');
-    }
-    return;
-  }
-
-  showVerifyStep(usname, {
-    usname, category, currency,
-    name: '',
-    isPrivate,
-    pricead_24:  price24  || null,
-    pricead_48:  price48  || null,
-    pricead_72:  price72  || null,
-    pricead_all: priceAll || null,
-    owner_id: user?.id || 0
-  });
-}
-
-// ── Шаг верификации ───────────────────────────────────────────────────────────
-function showVerifyStep(usname, channelData) {
-  const botUsername = 'adsway_bot';
-  const isPrivate   = channelData.isPrivate;
-
-  window._pendingChannel = channelData;
-  window._pollTimer      = null;
-
-  if (isPrivate) {
-    // ── Приватный: автополучение ID через my_chat_member ──────────────────────
-    document.getElementById('manageFormCard').innerHTML = `
-      <div class="manage-form-title">🔐 Подтверждение владения</div>
-      <div class="verify-steps">
-        <div class="verify-step">
-          <div class="verify-step-num">1</div>
-          <div class="verify-step-text">
-            Зайди в настройки своего приватного канала →
-            <strong>Администраторы</strong> → добавь
-            <strong>@${botUsername}</strong> (достаточно без разрешений)
-          </div>
-        </div>
-        <div class="verify-step">
-          <div class="verify-step-num">2</div>
-          <div class="verify-step-text">
-            Как только добавишь — ID канала придёт автоматически, страница
-            обновится сама ⬇️
-          </div>
-        </div>
-      </div>
-      <div id="pollStatus" class="poll-status">
-        <span style="font-size:18px">⏳</span>
-        <span id="pollStatusText">Ожидаем добавления бота…</span>
-      </div>
-      <div class="form-actions" style="margin-top:16px">
-        <button class="btn btn-secondary"
-          onclick="stopPollChannelId(); renderManagePage()">Отмена</button>
-      </div>
-    `;
-    startPollChannelId(channelData);
-
-  } else {
-    // ── Публичный: обычная верификация по username ─────────────────────────────
-    document.getElementById('manageFormCard').innerHTML = `
-      <div class="manage-form-title">🔐 Подтверждение владения</div>
-      <div class="verify-steps">
-        <div class="verify-step">
-          <div class="verify-step-num">1</div>
-          <div class="verify-step-text">
-            Добавь бота <strong>@${botUsername}</strong> в канал
-            <strong>@${usname}</strong> как администратора (можно без разрешений)
-          </div>
-        </div>
-        <div class="verify-step">
-          <div class="verify-step-num">2</div>
-          <div class="verify-step-text">
-            Нажми «Проверить» — убедимся что ты администратор
-          </div>
-        </div>
-      </div>
-      <div class="form-actions" style="margin-top:16px">
-        <button class="btn btn-secondary" onclick="renderManagePage()">Назад</button>
-        <button class="btn btn-primary" id="verifyBtn" onclick="verifyAndSave()"
-          style="flex:1;justify-content:center">🔍 Проверить</button>
-      </div>
-    `;
-  }
-}
-
-// ── Поллинг для приватных каналов ─────────────────────────────────────────────
-function startPollChannelId(channelData) {
-  const user = tg?.initDataUnsafe?.user;
-  if (!user) return;
-
-  let attempts = 0;
-  const MAX_ATTEMPTS = 150; // 5 минут при интервале 2с
-
-  window._pollTimer = setInterval(async () => {
-    attempts++;
-    if (attempts > MAX_ATTEMPTS) {
-      stopPollChannelId();
-      const el = document.getElementById('pollStatusText');
-      if (el) el.textContent = 'Время ожидания вышло. Попробуйте снова.';
-      const box = document.getElementById('pollStatus');
-      if (box) box.classList.add('error');
-      return;
-    }
-
-    try {
-      const res = await apiFetch(`/verify-channel/pending/${user.id}`);
-      if (res && res.chat_id) {
-        stopPollChannelId();
-
-        const name = res.channel_name || res.chat_id;
-        const el  = document.getElementById('pollStatusText');
-        const box = document.getElementById('pollStatus');
-        if (el)  el.textContent = `✅ Найден: "${name}" — проверяем права…`;
-        if (box) box.classList.add('success');
-
-        // Записываем chat_id и запускаем верификацию
-        window._pendingChannel.usname = String(res.chat_id);
-        await verifyAndSave();
-      }
-    } catch (err) {
-      // Сетевые ошибки при поллинге игнорируем, но ошибки верификации показываем
-      if (err instanceof TypeError && err.message.includes('null')) {
-        // null reference в verifyAndSave — критическая ошибка, останавливаем
-        console.error('verifyAndSave error:', err);
-        stopPollChannelId();
-        const el  = document.getElementById('pollStatusText');
-        const box = document.getElementById('pollStatus');
-        if (el)  el.textContent = '❌ Внутренняя ошибка — обновите страницу';
-        if (box) { box.classList.remove('success'); box.classList.add('error'); }
-      }
-      // иначе просто пропускаем (временная сетевая ошибка)
-    }
-  }, 2000);
-}
-
-function stopPollChannelId() {
-  if (window._pollTimer) {
-    clearInterval(window._pollTimer);
-    window._pollTimer = null;
-  }
-}
-
-// ── Проверить и сохранить ─────────────────────────────────────────────────────
-async function verifyAndSave() {
-  const user = tg?.initDataUnsafe?.user;
-  const channelData = window._pendingChannel;
-  if (!channelData || !user) { showToast('⚠️ Ошибка — попробуйте снова', 'error'); return; }
-
-  // Кнопка есть только в публичном флоу; в приватном используем pollStatus
-  const btn        = document.getElementById('verifyBtn');
-  const pollStatus = document.getElementById('pollStatusText');
-
-  if (btn) { btn.textContent = '⏳ Проверяем…'; btn.disabled = true; }
-  if (pollStatus) pollStatus.textContent = '🔄 Проверяем права администратора…';
-
-  const verify = await apiFetch('/verify-channel', {
-    method: 'POST',
-    body: JSON.stringify({ usname: channelData.usname, user_id: user.id }),
-  });
-
-  if (!verify || verify.__error || !verify.verified) {
-    if (btn) { btn.textContent = '🔍 Проверить'; btn.disabled = false; }
-    if (pollStatus) pollStatus.textContent = '❌ Проверка не пройдена — попробуйте снова';
-    const box = document.getElementById('pollStatus');
-    if (box) { box.classList.remove('success'); box.classList.add('error'); }
-    showToast(verify?.error || verify?.message || '❌ Проверка не пройдена', 'error');
-    return;
-  }
-
-  channelData.name        = verify.name || channelData.usname;
-  channelData.subscribers = verify.subscribers || 0;
-  channelData.avatar_url  = verify.avatar_url || null;
-  // Используем usname из ответа сервера (нормализованный)
-  if (verify.usname) channelData.usname = verify.usname;
-
-  const result = await apiFetch('/channels', {
-    method: 'POST',
-    body: JSON.stringify(channelData),
-  });
-
-  if (!result || result.__error) {
-    if (btn) { btn.textContent = '🔍 Проверить'; btn.disabled = false; }
-    if (pollStatus) pollStatus.textContent = '❌ Ошибка сохранения — попробуйте снова';
-    const box = document.getElementById('pollStatus');
-    if (box) { box.classList.remove('success'); box.classList.add('error'); }
-    if (result?.status === 409) {
-      showToast('❌ Этот канал уже добавлен другим пользователем', 'error');
-    } else {
-      showToast(`❌ ${result?.message || result?.error || 'Ошибка сохранения'}`, 'error');
-    }
-    return;
-  }
-
-  if (user?.id) {
-    await apiFetch('/user_admin', {
-      method: 'POST',
-      body: JSON.stringify({ user_id: user.id, channel_id: result.id, premium: false }),
-    });
-  }
-
-  showToast(`✅ Канал "${channelData.name}" добавлен!`, 'success');
-  loadStats();
-
-  // Проверяем: остались ли ещё каналы в очереди (добавили несколько сразу)
-  const next = user ? await apiFetch(`/verify-channel/pending/${user.id}`) : null;
-  if (next && next.chat_id) {
-    // Есть следующий — верифицируем его с теми же параметрами формы
-    const nextName = next.channel_name || next.chat_id;
-    window._pendingChannel = { ...channelData, usname: String(next.chat_id) };
-    const el  = document.getElementById('pollStatusText');
-    const box = document.getElementById('pollStatus');
-    if (el)  el.textContent = `✅ Следующий: "${nextName}" — проверяем права…`;
-    if (box) { box.classList.remove('error'); box.classList.add('success'); }
-    await verifyAndSave();
-  } else {
-    // Очередь пуста — возвращаемся на страницу управления
-    renderManagePage();
-    window._pendingChannel = null;
-  }
-}
-
-// ── Редактировать канал ───────────────────────────────────────────────────────
-async function editChannel(id) {
-  const data = await apiFetch(`/channels/${id}`);
-  if (!data || data.__error) return;
-
-  editingChannelId = id;
-
-  // При редактировании тип всегда «публичный» (usname уже известен), toggle скрываем
-  const toggleEl = document.querySelector('.channel-type-toggle')?.closest('.form-group');
-  if (toggleEl) toggleEl.style.display = 'none';
-  const usnameG = document.getElementById('usnameGroup');
-  if (usnameG) usnameG.style.display = '';
-  const hintG = document.getElementById('privateHintGroup');
-  if (hintG) hintG.style.display = 'none';
-
-  if (document.getElementById('fUsname'))   document.getElementById('fUsname').value   = data.usname || '';
-  if (document.getElementById('fCategory')) document.getElementById('fCategory').value = data.category || '';
-  if (document.getElementById('fPrice24'))  document.getElementById('fPrice24').value  = data.pricead_24  || '';
-  if (document.getElementById('fPrice48'))  document.getElementById('fPrice48').value  = data.pricead_48  || '';
-  if (document.getElementById('fPrice72'))  document.getElementById('fPrice72').value  = data.pricead_72  || '';
-  if (document.getElementById('fPriceAll')) document.getElementById('fPriceAll').value = data.pricead_all || '';
-  if (document.getElementById('fCurrency')) document.getElementById('fCurrency').value = data.currency || 'RUB';
-
+  document.getElementById('fCategory').value = data.category || '';
+  document.getElementById('fPrice24').value  = data.pricead_24  || '';
+  document.getElementById('fPrice48').value  = data.pricead_48  || '';
+  document.getElementById('fPrice72').value  = data.pricead_72  || '';
+  document.getElementById('fPriceAll').value = data.pricead_all || '';
+  document.getElementById('fCurrency').value = data.currency || 'RUB';
   updatePriceLabels();
 
-  const title = document.getElementById('manageFormTitle');
-  if (title) title.textContent = '✏️ Редактировать канал';
-
-  const submitBtn = document.getElementById('formSubmitBtn');
-  if (submitBtn) submitBtn.textContent = '💾 Сохранить';
-
-  const cancelBtn = document.getElementById('formCancelBtn');
-  if (cancelBtn) cancelBtn.style.display = 'block';
-
-  document.getElementById('manageFormCard').scrollIntoView({ behavior: 'smooth' });
+  card.style.display = '';
+  card.scrollIntoView({ behavior: 'smooth' });
   if (tg) tg.HapticFeedback?.impactOccurred('medium');
 }
 
@@ -1262,23 +1031,11 @@ async function deleteChannel(id, name) {
 
 function resetForm() {
   editingChannelId = null;
-  ['fUsname','fCategory','fPrice24','fPrice48','fPrice72','fPriceAll'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-  const fCur = document.getElementById('fCurrency');
-  if (fCur) fCur.value = 'RUB';
-
-  // Сбрасываем переключатель типа на «Публичный»
-  setChannelType('public');
-
-  const title     = document.getElementById('manageFormTitle');
-  const submitBtn = document.getElementById('formSubmitBtn');
-  const cancelBtn = document.getElementById('formCancelBtn');
-  if (title)     title.textContent     = '➕ Добавить канал';
-  if (submitBtn) submitBtn.textContent = '➕ Добавить';
-  if (cancelBtn) cancelBtn.style.display = 'none';
-  updatePriceLabels();
+  const card = document.getElementById('manageFormCard');
+  if (card) {
+    card.style.display = 'none';
+    card.innerHTML = '';
+  }
 }
 
 // ── Collab settings ───────────────────────────────────────────────────────────

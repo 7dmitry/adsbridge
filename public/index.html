@@ -166,76 +166,16 @@
     <div class="page" id="page-manage">
       <p class="section-title" style="margin-top:4px">Управление каналами</p>
 
-      <div class="manage-form-card" id="manageFormCard">
-        <!-- Заполняется через JS renderManagePage() -->
-        <div class="manage-form-title">➕ Добавить канал</div>
-        <div class="form-group">
-          <label class="form-label">Тип канала *</label>
-          <div class="channel-type-toggle">
-            <button type="button" id="typeBtnPublic" class="type-btn active"
-              onclick="setChannelType('public')">🌐 Публичный</button>
-            <button type="button" id="typeBtnPrivate" class="type-btn"
-              onclick="setChannelType('private')">🔒 Приватный</button>
-          </div>
-        </div>
-        <div class="form-group" id="usnameGroup">
-          <label class="form-label">Username или ссылка *</label>
-          <input class="form-input" id="fUsname" placeholder="@channel или t.me/channel">
-        </div>
-        <div class="form-group" id="privateHintGroup" style="display:none">
-          <div class="private-channel-hint">
-            🤖 ID получим автоматически — после нажатия «Добавить» просто добавь бота в канал как администратора
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Категория *</label>
-          <select class="form-input" id="fCategory">
-            <option value="">— Выберите —</option>
-            <option value="tech">🖥️ Технологии</option>
-            <option value="business">💼 Бизнес</option>
-            <option value="finance">📈 Финансы</option>
-            <option value="games">🎮 Игры</option>
-            <option value="art">🎨 Творчество</option>
-            <option value="news">📰 Новости</option>
-            <option value="entertainment">🎬 Развлечения</option>
-            <option value="edu">🎓 Образование</option>
-            <option value="other">🌍 Другое</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Валюта</label>
-          <select class="form-input" id="fCurrency" onchange="updatePriceLabels()">
-            <option value="RUB">₽ RUB</option>
-            <option value="KZT">₸ KZT</option>
-            <option value="TON">ꘜ TON</option>
-            <option value="USD">$ USD</option>
-            <option value="STARS">⭐️ Stars</option>
-          </select>
-        </div>
-        <div class="form-row">
-          <div class="form-group" style="flex:1">
-            <label class="form-label" id="label24">Цена 24ч</label>
-            <input class="form-input" id="fPrice24" placeholder="500 или -">
-          </div>
-          <div class="form-group" style="flex:1">
-            <label class="form-label" id="label48">Цена 48ч</label>
-            <input class="form-input" id="fPrice48" placeholder="800 или -">
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group" style="flex:1">
-            <label class="form-label" id="label72">Цена 72ч</label>
-            <input class="form-input" id="fPrice72" placeholder="1200 или -">
-          </div>
-          <div class="form-group" style="flex:1">
-            <label class="form-label" id="labelAll">Цена навсегда</label>
-            <input class="form-input" id="fPriceAll" placeholder="2000 или -">
-          </div>
-        </div>
-        <div class="form-actions">
-          <button class="btn btn-secondary" id="formCancelBtn" onclick="resetForm()" style="display:none">Отмена</button>
-          <button class="btn btn-primary" id="formSubmitBtn" onclick="submitChannel()" style="flex:1;justify-content:center">➕ Добавить</button>
-        </div>
+      <div class="auto-add-banner">
+        <span class="auto-add-banner-icon">🤖</span>
+        <span class="auto-add-banner-text">
+          <strong>Канал получим автоматически</strong> — просто добавь бота в канал как администратора.
+          После добавления не забудь заполнить карточку канала.
+        </span>
+      </div>
+
+      <div class="manage-form-card" id="manageFormCard" style="display:none">
+        <!-- Заполняется через JS editChannel() при редактировании карточки -->
       </div>
 
       <p class="section-title" style="margin-top:20px">Мои каналы</p>

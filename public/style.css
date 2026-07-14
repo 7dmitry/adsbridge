@@ -707,7 +707,7 @@ a {
   color: var(--text);
 }
 
-/* Хинт для приватного канала */
+/* Хинт для приватного канала (оставлено для обратной совместимости стилей) */
 .private-channel-hint {
   background: rgba(108,99,255,.08);
   border: 1px solid rgba(108,99,255,.25);
@@ -716,6 +716,51 @@ a {
   font-size: 13px;
   color: var(--text2);
   line-height: 1.6;
+}
+
+/* Баннер автоматического добавления канала (шапка страницы «Управление») */
+.auto-add-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: rgba(108,99,255,.08);
+  border: 1px solid rgba(108,99,255,.25);
+  border-radius: var(--r2);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+.auto-add-banner-icon { font-size: 20px; line-height: 1.4; flex-shrink: 0; }
+.auto-add-banner-text {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.6;
+}
+.auto-add-banner-text strong { color: var(--text); }
+
+/* Карточка канала, ожидающая заполнения (добавлена автоматически, но без цен/категории) */
+.manage-ch-item-pending { border-color: rgba(251,146,60,.35); }
+
+/* Шапка карточки редактирования канала */
+.edit-channel-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.edit-channel-avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.edit-channel-name {
+  font-family: 'Syne', sans-serif;
+  font-size: 14px; font-weight: 700;
+  color: var(--text);
+}
+.edit-channel-usname {
+  font-size: 12px;
+  color: var(--text3);
+  margin-top: 2px;
 }
 
 /* Статус поллинга в шаге верификации */

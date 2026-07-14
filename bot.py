@@ -597,38 +597,80 @@ async def cmd_add_channel(msg: types.Message):
     ChatMemberUpdatedFilter(member_status_changed=IS_NOT_MEMBER >> ADMINISTRATOR)
 )
 async def on_bot_added_as_admin(event: ChatMemberUpdated):
+    """
+    Как только бота добавляют в канал администратором — канал автоматически
+    регистрируется в каталоге (с пустыми ценой/категорией) и привязывается
+    к пользователю, который его добавил. Разделения на публичный/приватный
+    больше нет — тип определяется автоматически по наличию @username.
+    """
     if event.chat.type != 'channel':
         return
 
-    channel_id   = event.chat.id
-    channel_name = event.chat.title or ''
+    chat         = event.chat
+    channel_name = chat.title or ''
     user_id      = event.from_user.id
 
+    # ── Тип канала определяем автоматически: есть username → публичный,
+    #    нет → приватный (используем числовой chat_id как usname) ───────────────
+    usname = chat.username if chat.username else str(chat.id)
+
+    subs, avatar_url, fetched_name = await fetch_channel_info(usname)
+    if subs is None:
+        subs = 0
+        avatar_url = None
+    name = fetched_name or channel_name or usname
+
+    channel_id = None
     try:
         c.execute("""
-            INSERT INTO pending_channel_ids (user_id, chat_id, channel_name, created_at)
-            VALUES (%s, %s, %s, NOW())
-        """, (user_id, str(channel_id), channel_name))
-        logger.info(f"✅ Бот добавлен в канал '{channel_name}' ({channel_id}) пользователем {user_id}")
+            INSERT INTO channels (usname, name, subscribers, avatar_url, owner_id,
+                                   category, pricead_24, pricead_48, pricead_72,
+                                   pricead_all, collab)
+            VALUES (%s, %s, %s, %s, %s, NULL, NULL, NULL, NULL, NULL, FALSE)
+            ON CONFLICT (usname) DO UPDATE
+                SET name        = EXCLUDED.name,
+                    subscribers = EXCLUDED.subscribers,
+                    avatar_url  = EXCLUDED.avatar_url
+            RETURNING id
+        """, (usname, name, subs, avatar_url, user_id))
+        channel_id = c.fetchone()[0]
+
+        c.execute("""
+            INSERT INTO user_admin (user_id, channel_id)
+            VALUES (%s, %s)
+            ON CONFLICT DO NOTHING
+        """, (user_id, channel_id))
+
+        logger.info(
+            f"✅ Канал '{name}' (@{usname}, id={channel_id}) автоматически "
+            f"зарегистрирован для пользователя {user_id}"
+        )
     except Exception as e:
-        logger.error(f"Ошибка записи pending_channel_ids: {e}")
-        # Fallback: пробуем без channel_name (старая схема БД)
-        try:
-            c.execute("""
-                INSERT INTO pending_channel_ids (user_id, chat_id, created_at)
-                VALUES (%s, %s, NOW())
-            """, (user_id, str(channel_id)))
-            logger.info(f"✅ Записано (fallback без channel_name): {channel_id} для {user_id}")
-        except Exception as e2:
-            logger.error(f"Fallback тоже не удался: {e2}")
-            return
+        logger.error(f"Ошибка автоматической регистрации канала: {e}")
+
+    # ── Сигнал для WebApp (поллинг), чтобы список каналов обновился сразу ──────
+    try:
+        c.execute("""
+            INSERT INTO pending_channel_ids (user_id, chat_id, channel_name, channel_id, created_at)
+            VALUES (%s, %s, %s, %s, NOW())
+        """, (user_id, str(chat.id), name, channel_id))
+    except Exception as e:
+        logger.warning(f"Ошибка записи pending_channel_ids: {e}")
 
     try:
-        await bot.send_message(
-            user_id,
-            f"✅ Канал <b>{channel_name}</b> получен!\n"
-            f"Вернитесь в AdsWay — страница обновится автоматически.",
-        )
+        if channel_id:
+            await bot.send_message(
+                user_id,
+                f"✅ Канал <b>{name}</b> добавлен в AdsWay!\n\n"
+                f"Он уже появился в разделе «Мои каналы» — осталось заполнить "
+                f"карточку: категорию и цены на рекламу.",
+            )
+        else:
+            await bot.send_message(
+                user_id,
+                f"⚠️ Бот добавлен в канал <b>{name}</b>, но при регистрации "
+                f"произошла ошибка. Попробуйте открыть AdsWay и обновить страницу.",
+            )
     except Exception:
         pass
 

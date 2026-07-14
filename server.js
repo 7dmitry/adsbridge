@@ -954,16 +954,20 @@ app.patch('/api/channels/:id/collab', requireTgAuth, async (req, res) => {
   }
 });
 
-// ── Таблица pending_channel_ids — пересоздаём при старте (временная очередь) ──
+// ── Таблица pending_channel_ids — очередь уведомлений WebApp об автодобавлении ─
+// Канал уже создаётся ботом напрямую в channels/user_admin в момент, когда его
+// добавляют администратором. Эта таблица — лёгкий сигнал «обнови список»,
+// который забирает поллинг на фронте.
 pool.query(`
-  DROP TABLE IF EXISTS pending_channel_ids;
-  CREATE TABLE pending_channel_ids (
+  CREATE TABLE IF NOT EXISTS pending_channel_ids (
     id           BIGSERIAL PRIMARY KEY,
     user_id      BIGINT NOT NULL,
     chat_id      TEXT NOT NULL,
     channel_name TEXT,
+    channel_id   BIGINT,
     created_at   TIMESTAMPTZ DEFAULT NOW()
   );
+  ALTER TABLE pending_channel_ids ADD COLUMN IF NOT EXISTS channel_id BIGINT;
 `).then(() => console.log('✅ pending_channel_ids готова'))
   .catch(e => console.error('pending_channel_ids init error:', e));
 
@@ -974,6 +978,9 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // ── GET /api/verify-channel/pending/:user_id — забирает ОДНУ запись из очереди ─
+// Используется WebApp'ом для поллинга на странице «Управление каналами»:
+// как только бота добавили админом в канал, отсюда прилетает сигнал
+// с channel_id уже готового (сохранённого в БД) канала.
 app.get('/api/verify-channel/pending/:user_id', requireTgAuth, async (req, res) => {
   const userId = parseInt(req.params.user_id);
   if (!userId) return res.status(400).json({ error: 'Неверный user_id' });
@@ -987,11 +994,15 @@ app.get('/api/verify-channel/pending/:user_id', requireTgAuth, async (req, res) 
          ORDER BY created_at ASC
          LIMIT 1
        )
-       RETURNING chat_id, channel_name`,
+       RETURNING chat_id, channel_name, channel_id`,
       [userId]
     );
     if (r.rows.length === 0) return res.json({ pending: true });
-    res.json({ chat_id: r.rows[0].chat_id, channel_name: r.rows[0].channel_name });
+    res.json({
+      chat_id:      r.rows[0].chat_id,
+      channel_name: r.rows[0].channel_name,
+      channel_id:   r.rows[0].channel_id,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
