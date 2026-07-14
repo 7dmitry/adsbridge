@@ -954,6 +954,12 @@ app.patch('/api/channels/:id/collab', requireTgAuth, async (req, res) => {
   }
 });
 
+// ── Разрешаем пустую категорию у channels — нужно для автоматической
+//    регистрации канала ботом (category заполняется позже владельцем) ─────────
+pool.query(`ALTER TABLE channels ALTER COLUMN category DROP NOT NULL;`)
+  .then(() => console.log('✅ channels.category теперь nullable'))
+  .catch(e => console.error('channels.category migration error:', e));
+
 // ── Таблица pending_channel_ids — очередь уведомлений WebApp об автодобавлении ─
 // Канал уже создаётся ботом напрямую в channels/user_admin в момент, когда его
 // добавляют администратором. Эта таблица — лёгкий сигнал «обнови список»,
