@@ -3,7 +3,7 @@
 // git add .
 // git commit -m "fix db connection"
 // git push
-
+//11.08.2026
 const tg = window.Telegram?.WebApp;
 if (tg) {
   tg.ready();
