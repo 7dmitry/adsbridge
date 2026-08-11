@@ -690,6 +690,10 @@ async function contactChannel(channelId) {
   if (result?.ok) {
     showToast('📩 Сообщение отправлено в бот!', 'success');
     if (tg) tg.HapticFeedback?.notificationOccurred('success');
+  } else {
+    const msg = result?.error || 'Не удалось отправить сообщение';
+    showToast(`❌ ${msg}`, 'error');
+    if (tg) tg.HapticFeedback?.notificationOccurred('error');
   }
 }
 

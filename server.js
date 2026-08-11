@@ -743,14 +743,21 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
     const ch = result.rows[0];
     if (!ch) return res.status(404).json({ error: 'Канал не найден' });
 
-    let ownerUsername = ch.usname;
+    // Берём username владельца из таблицы users
+    let ownerUsername = null;
     if (ch.owner_id) {
       const ownerResult = await pool.query(
         'SELECT username FROM users WHERE id = $1', [ch.owner_id]
       );
-      if (ownerResult.rows[0]?.username) {
-        ownerUsername = ownerResult.rows[0].username;
-      }
+      ownerUsername = ownerResult.rows[0]?.username || null;
+    }
+
+    // Если username канала выглядит как текст (не числовой ID) — используем как запасной
+    const usnameIsText = ch.usname && !/^-?\d+$/.test(String(ch.usname));
+    if (!ownerUsername && usnameIsText) ownerUsername = ch.usname;
+
+    if (!ownerUsername) {
+      return res.status(400).json({ error: 'У владельца канала нет username в Telegram — свяжитесь через @AdsWay_Community' });
     }
 
     // Берём валюту владельца (owner_currency_primary), а не поле канала
