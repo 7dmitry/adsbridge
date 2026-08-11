@@ -743,14 +743,19 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
     const ch = result.rows[0];
     if (!ch) return res.status(404).json({ error: 'Канал не найден' });
 
-    let ownerUsername = ch.usname;
+    // Строим ссылку: приоритет tg://user?id=, запасной — ссылка на канал
+    let contactUrl = null;
     if (ch.owner_id) {
-      const ownerResult = await pool.query(
-        'SELECT username FROM users WHERE id = $1', [ch.owner_id]
-      );
-      if (ownerResult.rows[0]?.username) {
-        ownerUsername = ownerResult.rows[0].username;
-      }
+      contactUrl = `tg://user?id=${ch.owner_id}`;
+    }
+    if (!contactUrl) {
+      const usn = String(ch.usname || '');
+      const isNum = /^-?\d+$/.test(usn);
+      if (!isNum && usn) contactUrl = `https://t.me/${usn}`;
+      else if (isNum) contactUrl = `https://t.me/c/${usn.replace(/^-100/,'')}/1`;
+    }
+    if (!contactUrl) {
+      return res.status(400).json({ error: 'Не удалось определить способ связи с владельцем' });
     }
 
     // Берём валюту владельца (owner_currency_primary), а не поле канала
@@ -767,15 +772,13 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
     const allCurrs = [ownerCurrency, ...(Array.isArray(extras) ? extras.filter(c => c !== ownerCurrency) : [])];
     const payStr = allCurrs.map(c => CURRENCY_SYMBOLS[c] || c).join(', ');
 
-    // Экранируем спецсимволы Markdown: * _ ` [
-    const escapeMd = (s) => String(s || '').replace(/([*_`\[\]()])/g, '\\$1');
-
-    const usnameDisplay = String(ch.usname || '');
-    const usnameIsNumeric = /^-?\d+$/.test(usnameDisplay);
-    const usnameStr = usnameIsNumeric ? '(приватный канал)' : `@${usnameDisplay}`;
+    const esc = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const usnameRaw = String(ch.usname || '');
+    const usnameIsNumeric = /^-?\d+$/.test(usnameRaw);
+    const usnameStr = usnameIsNumeric ? '(приватный канал)' : `@${usnameRaw}`;
 
     const text =
-      `📢 *${escapeMd(ch.name)}*\n` +
+      `📢 <b>${esc(ch.name)}</b>\n` +
       `${usnameStr}\n\n` +
       `💰 Реклама 24ч: ${price24}\n` +
       `💰 Реклама 48ч: ${price48}\n` +
@@ -791,10 +794,10 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
       body: JSON.stringify({
         chat_id: user_id,
         text,
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [[
-            { text: '✍️ Написать администратору', url: `https://t.me/${ownerUsername}` }
+            { text: '✍️ Написать администратору', url: contactUrl }
           ]]
         }
       }),
@@ -860,12 +863,12 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
     const netSym = CURRENCY_SYMBOLS[net.currency || 'RUB'] || '₽';
     const fmtP = (p) => (p && p !== '-') ? `${p}${netSym}` : '—';
 
-    // Строки по каналам (экранируем Markdown)
-    const escapeMd2 = (s) => String(s || '').replace(/([*_`\[\]()])/g, '\\$1');
+    // Строки по каналам
+    const esc2 = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const chLines = channels.map(c => {
-      const usn = String(c.usname || '');
+      const usn = String(c.usname||'');
       const usnPart = /^-?\d+$/.test(usn) ? '(приватный)' : `@${usn}`;
-      return `${escapeMd2(c.name)} (${usnPart})`;
+      return `${esc2(c.name)} (${usnPart})`;
     }).join('\n');
 
     // Суммарные подписчики
@@ -885,7 +888,7 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
     const catStr = net.category ? ` · ${catNames[net.category] || net.category}` : '';
 
     const text =
-      `📋 *Сетка каналов: ${escapeMd2(net.name)}*${catStr}\n` +
+      `📋 <b>Сетка каналов: ${esc2(net.name)}</b>${catStr}\n` +
       `👥 Всего подписчиков: ${totalSubs}\n\n` +
       `💰 Цена рекламы в сетке:\n` +
       `   24ч: ${fmtP(net.pricead_24)} · 48ч: ${fmtP(net.pricead_48)}\n` +
@@ -900,7 +903,7 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
       body: JSON.stringify({
         chat_id: user_id,
         text,
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [[
             { text: '✍️ Написать владельцу сетки', url: `https://t.me/${ownerUsername}` }
