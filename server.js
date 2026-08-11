@@ -743,31 +743,14 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
     const ch = result.rows[0];
     if (!ch) return res.status(404).json({ error: 'Канал не найден' });
 
-    // Строим ссылку для кнопки:
-    // 1. Приоритет — tg://user?id=OWNER_ID (работает без username)
-    // 2. Запасной — ссылка на сам канал
-    let contactUrl = null;
-
+    let ownerUsername = ch.usname;
     if (ch.owner_id) {
-      // Пробуем через Telegram ID владельца
-      contactUrl = `tg://user?id=${ch.owner_id}`;
-    }
-
-    if (!contactUrl) {
-      // Запасной: ссылка на канал
-      const usname = String(ch.usname || '');
-      const isNumeric = /^-?\d+$/.test(usname);
-      if (!isNumeric && usname) {
-        contactUrl = `https://t.me/${usname}`;
-      } else if (isNumeric) {
-        // Приватный канал — убираем -100 префикс для invite-ссылки
-        const cleanId = usname.replace(/^-100/, '');
-        contactUrl = `https://t.me/c/${cleanId}/1`;
+      const ownerResult = await pool.query(
+        'SELECT username FROM users WHERE id = $1', [ch.owner_id]
+      );
+      if (ownerResult.rows[0]?.username) {
+        ownerUsername = ownerResult.rows[0].username;
       }
-    }
-
-    if (!contactUrl) {
-      return res.status(400).json({ error: 'Не удалось определить способ связи с владельцем' });
     }
 
     // Берём валюту владельца (owner_currency_primary), а не поле канала
@@ -784,9 +767,16 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
     const allCurrs = [ownerCurrency, ...(Array.isArray(extras) ? extras.filter(c => c !== ownerCurrency) : [])];
     const payStr = allCurrs.map(c => CURRENCY_SYMBOLS[c] || c).join(', ');
 
+    // Экранируем спецсимволы Markdown: * _ ` [
+    const escapeMd = (s) => String(s || '').replace(/([*_`\[\]()])/g, '\\$1');
+
+    const usnameDisplay = String(ch.usname || '');
+    const usnameIsNumeric = /^-?\d+$/.test(usnameDisplay);
+    const usnameStr = usnameIsNumeric ? '(приватный канал)' : `@${usnameDisplay}`;
+
     const text =
-      `📢 *${ch.name}*\n` +
-      `@${ch.usname}\n\n` +
+      `📢 *${escapeMd(ch.name)}*\n` +
+      `${usnameStr}\n\n` +
       `💰 Реклама 24ч: ${price24}\n` +
       `💰 Реклама 48ч: ${price48}\n` +
       `💰 Реклама 72ч: ${price72}\n` +
@@ -804,7 +794,7 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
         parse_mode: 'Markdown',
         reply_markup: {
           inline_keyboard: [[
-            { text: '✍️ Написать администратору', url: contactUrl }
+            { text: '✍️ Написать администратору', url: `https://t.me/${ownerUsername}` }
           ]]
         }
       }),
@@ -870,10 +860,13 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
     const netSym = CURRENCY_SYMBOLS[net.currency || 'RUB'] || '₽';
     const fmtP = (p) => (p && p !== '-') ? `${p}${netSym}` : '—';
 
-    // Строки по каналам
-    const chLines = channels.map(c =>
-      `${c.name} (@${c.usname})`
-    ).join('\n');
+    // Строки по каналам (экранируем Markdown)
+    const escapeMd2 = (s) => String(s || '').replace(/([*_`\[\]()])/g, '\\$1');
+    const chLines = channels.map(c => {
+      const usn = String(c.usname || '');
+      const usnPart = /^-?\d+$/.test(usn) ? '(приватный)' : `@${usn}`;
+      return `${escapeMd2(c.name)} (${usnPart})`;
+    }).join('\n');
 
     // Суммарные подписчики
     const totalSubs = channels.reduce((s, c) => s + (parseInt(c.subscribers) || 0), 0);
@@ -892,7 +885,7 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
     const catStr = net.category ? ` · ${catNames[net.category] || net.category}` : '';
 
     const text =
-      `📋 *Сетка каналов: ${net.name}*${catStr}\n` +
+      `📋 *Сетка каналов: ${escapeMd2(net.name)}*${catStr}\n` +
       `👥 Всего подписчиков: ${totalSubs}\n\n` +
       `💰 Цена рекламы в сетке:\n` +
       `   24ч: ${fmtP(net.pricead_24)} · 48ч: ${fmtP(net.pricead_48)}\n` +
