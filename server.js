@@ -743,21 +743,31 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
     const ch = result.rows[0];
     if (!ch) return res.status(404).json({ error: 'Канал не найден' });
 
-    // Берём username владельца из таблицы users
-    let ownerUsername = null;
+    // Строим ссылку для кнопки:
+    // 1. Приоритет — tg://user?id=OWNER_ID (работает без username)
+    // 2. Запасной — ссылка на сам канал
+    let contactUrl = null;
+
     if (ch.owner_id) {
-      const ownerResult = await pool.query(
-        'SELECT username FROM users WHERE id = $1', [ch.owner_id]
-      );
-      ownerUsername = ownerResult.rows[0]?.username || null;
+      // Пробуем через Telegram ID владельца
+      contactUrl = `tg://user?id=${ch.owner_id}`;
     }
 
-    // Если username канала выглядит как текст (не числовой ID) — используем как запасной
-    const usnameIsText = ch.usname && !/^-?\d+$/.test(String(ch.usname));
-    if (!ownerUsername && usnameIsText) ownerUsername = ch.usname;
+    if (!contactUrl) {
+      // Запасной: ссылка на канал
+      const usname = String(ch.usname || '');
+      const isNumeric = /^-?\d+$/.test(usname);
+      if (!isNumeric && usname) {
+        contactUrl = `https://t.me/${usname}`;
+      } else if (isNumeric) {
+        // Приватный канал — убираем -100 префикс для invite-ссылки
+        const cleanId = usname.replace(/^-100/, '');
+        contactUrl = `https://t.me/c/${cleanId}/1`;
+      }
+    }
 
-    if (!ownerUsername) {
-      return res.status(400).json({ error: 'У владельца канала нет username в Telegram — свяжитесь через @AdsWay_Community' });
+    if (!contactUrl) {
+      return res.status(400).json({ error: 'Не удалось определить способ связи с владельцем' });
     }
 
     // Берём валюту владельца (owner_currency_primary), а не поле канала
@@ -794,7 +804,7 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
         parse_mode: 'Markdown',
         reply_markup: {
           inline_keyboard: [[
-            { text: '✍️ Написать администратору', url: `https://t.me/${ownerUsername}` }
+            { text: '✍️ Написать администратору', url: contactUrl }
           ]]
         }
       }),
