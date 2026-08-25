@@ -41,6 +41,7 @@ DB_USER      = os.getenv("DB_USER")
 DB_PASSWORD  = os.getenv("DB_PASSWORD")
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+crypto_pay = CryptoPay(token=BOT_PAY, network=Networks.TEST_NET)
 dp  = Dispatcher(storage=MemoryStorage())
 
 DATABASE_URL = os.getenv("DATABASE_URL")
