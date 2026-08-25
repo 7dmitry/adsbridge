@@ -688,18 +688,18 @@ async def cmd_buy(message: types.Message):
         # Создаем счет в Crypto Bot
         # Принимаем оплату в TON (можно указать USDT, NOT, BTC и т.д.)
         invoice = await crypto_pay.create_invoice(
-            asset='TON', 
-            amount=1.5, # Цена: 1.5 TON
+            asset='USDT', 
+            amount=1, 
             description=f"Оплата Премиум-статуса для пользователя {chat_id}"
         )
 
         # Создаем инлайн-кнопку, которая ведет на оплату в CryptoBot
         builder = InlineKeyboardBuilder()
-        builder.button(text="💳 Оплатить 1.5 TON", url=invoice.bot_invoice_url)
+        builder.button(text="💳 Оплатить 1 USDT", url=invoice.bot_invoice_url)
         
         await message.answer(
-            f"💰 **Счет успешно создан!**\n\n"
-            f"Сумма к оплате: **1.5 TON**\n"
+            f"💰 Счет успешно создан!\n\n"
+            f"Сумма к оплате: 1 USDT\n"
             f"После оплаты премиум активируется автоматически.",
             reply_markup=builder.as_markup()
         )
