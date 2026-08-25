@@ -688,7 +688,7 @@ async def cmd_buy(message: types.Message):
         # Создаем счет в Crypto Bot
         # Принимаем оплату в TON (можно указать USDT, NOT, BTC и т.д.)
         invoice = await crypto_pay.create_invoice(
-            asset='USDT', 
+            asset='USD', 
             amount=1, 
             description=f"Оплата Премиум-статуса для пользователя {chat_id}"
         )
