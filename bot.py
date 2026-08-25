@@ -22,6 +22,7 @@ from aiogram import F, Router, types
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import psycopg2
 import json
+from aiocryptopay import CryptoPay, Networks
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
@@ -675,6 +676,65 @@ async def on_bot_added_as_admin(event: ChatMemberUpdated):
     except Exception:
         pass
 
+@dp.message(Command("buy"))
+async def cmd_buy(message: types.Message):
+    """Создание счета на оплату."""
+    chat_id = message.chat.id
+    await message.answer("⏳ Генерирую счет на оплату...")
+
+    try:
+        # Создаем счет в Crypto Bot
+        # Принимаем оплату в TON (можно указать USDT, NOT, BTC и т.д.)
+        invoice = await crypto_pay.create_invoice(
+            asset='TON', 
+            amount=1.5, # Цена: 1.5 TON
+            description=f"Оплата Премиум-статуса для пользователя {chat_id}"
+        )
+
+        # Создаем инлайн-кнопку, которая ведет на оплату в CryptoBot
+        builder = InlineKeyboardBuilder()
+        builder.button(text="💳 Оплатить 1.5 TON", url=invoice.bot_invoice_url)
+        
+        await message.answer(
+            f"💰 **Счет успешно создан!**\n\n"
+            f"Сумма к оплате: **1.5 TON**\n"
+            f"После оплаты премиум активируется автоматически.",
+            reply_markup=builder.as_markup()
+        )
+
+        # Запускаем фоновую проверку конкретно этого счета
+        asyncio.create_task(track_invoice_status(invoice.invoice_id, chat_id))
+
+    except Exception as e:
+        logging.error(f"Ошибка при создании счета: {e}")
+        await message.answer("❌ Произошла ошибка при формировании счета. Попробуйте позже.")
+
+
+async def track_invoice_status(invoice_id: int, chat_id: int):
+    """Фоновый цикл проверки статуса оплаты счета."""
+    # Проверяем счет в течение 15 минут (30 итераций по 30 секунд)
+    for _ in range(30):
+        await asyncio.sleep(30)
+        try:
+            # Запрашиваем информацию о счете по его ID
+            invoices = await crypto_pay.get_invoices(invoice_ids=invoice_id)
+            if invoices:
+                current_invoice = invoices # Получаем объект счета
+                
+                # Если статус счета стал "paid" (оплачен)
+                if current_invoice.status == 'paid':
+                    await bot.send_message(
+                        chat_id=chat_id, 
+                        text="🎉 **Ура! Оплата получена.**\nВам успешно выдан Премиум-статус на 1 месяц!"
+                    )
+                    # 💡 Здесь ваш код для выдачи премиума в Базе Данных (SQL)
+                    return
+                    
+                # Если счет отменен или истек срок его действия
+                elif current_invoice.status in ['expired', 'active' == False]:
+                    return
+        except Exception as e:
+            logging.error(f"Ошибка проверки статуса счета {invoice_id}: {e}")
 
 if __name__ == "__main__":
     try:
