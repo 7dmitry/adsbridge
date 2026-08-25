@@ -22,7 +22,7 @@ from aiogram import F, Router, types
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import psycopg2
 import json
-from aiocryptopay import CryptoPay, Networks
+from aiocryptopay import AioCryptoPay, Networks 
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
@@ -41,7 +41,7 @@ DB_USER      = os.getenv("DB_USER")
 DB_PASSWORD  = os.getenv("DB_PASSWORD")
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-crypto_pay = CryptoPay(token=BOT_PAY, network=Networks.TEST_NET)
+crypto_pay = AioCryptoPay(token=BOT_PAY, network=Networks.TEST_NET)
 dp  = Dispatcher(storage=MemoryStorage())
 
 DATABASE_URL = os.getenv("DATABASE_URL")
