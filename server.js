@@ -104,7 +104,7 @@ function validateChannelData({ usname, category, pricead_24, pricead_48, pricead
   if (!category || !VALID_CATEGORIES.includes(category)) {
     return 'Недопустимая категория';
   }
-  // Цены проверяем мягко — normalizePrice обработает
+  // Цены проверяем мягко - normalizePrice обработает
   return null;
 }
 
@@ -648,7 +648,7 @@ app.post('/api/verify-channel', requireTgAuth, async (req, res) => {
   }
 
   try {
-    // 1. getChat — проверяем что бот в канале
+    // 1. getChat - проверяем что бот в канале
     const chatRes = await fetch(
       `https://api.telegram.org/bot${process.env.BOT_TOKEN}/getChat`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -670,7 +670,7 @@ app.post('/api/verify-channel', requireTgAuth, async (req, res) => {
     const channelName   = chat.title || null;
     const finalUsname   = chat.username || String(numericChatId);
 
-    // 2. getChatMember — проверяем роль
+    // 2. getChatMember - проверяем роль
     const memberRes = await fetch(
       `https://api.telegram.org/bot${process.env.BOT_TOKEN}/getChatMember`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -693,7 +693,7 @@ app.post('/api/verify-channel', requireTgAuth, async (req, res) => {
       });
     }
 
-    // 3. getChatMemberCount — подписчики
+    // 3. getChatMemberCount - подписчики
     const countRes = await fetch(
       `https://api.telegram.org/bot${process.env.BOT_TOKEN}/getChatMemberCount`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -746,7 +746,7 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
     // Берём валюту владельца
     const ownerCurrency = ch.owner_currency_primary || ch.currency || 'RUB';
     const sym = CURRENCY_SYMBOLS[ownerCurrency] || '₽';
-    const formatPrice = (p) => (p && p !== '-') ? `${p}${sym}` : '—';
+    const formatPrice = (p) => (p && p !== '-') ? `${p}${sym}` : '-';
     const price24  = formatPrice(ch.pricead_24);
     const price48  = formatPrice(ch.pricead_48);
     const price72  = formatPrice(ch.pricead_72);
@@ -811,7 +811,7 @@ app.post('/api/send-message', requireTgAuth, async (req, res) => {
 
     let tgData = await tgRes.json();
 
-    // Если кнопка вызвала ошибку — отправляем без кнопки
+    // Если кнопка вызвала ошибку - отправляем без кнопки
     if (!tgData.ok) {
       tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         method: 'POST',
@@ -877,7 +877,7 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
 
     // Валюта и символ сетки
     const netSym = CURRENCY_SYMBOLS[net.currency || 'RUB'] || '₽';
-    const fmtP = (p) => (p && p !== '-') ? `${p}${netSym}` : '—';
+    const fmtP = (p) => (p && p !== '-') ? `${p}${netSym}` : '-';
 
     // Строки по каналам
     const chLines = channels.map(c =>
@@ -936,7 +936,7 @@ app.post('/api/send-network-message', requireTgAuth, async (req, res) => {
 });
 
 
-// ===== SHARE LINK — generate / resolve =====
+// ===== SHARE LINK - generate / resolve =====
 
 // Создать share-ссылку (возвращает deeplink)
 app.post('/api/share-link', requireTgAuth, async (req, res) => {
@@ -980,15 +980,15 @@ app.patch('/api/channels/:id/collab', requireTgAuth, async (req, res) => {
   }
 });
 
-// ── Разрешаем пустую категорию у channels — нужно для автоматической
+// ── Разрешаем пустую категорию у channels - нужно для автоматической
 //    регистрации канала ботом (category заполняется позже владельцем) ─────────
 pool.query(`ALTER TABLE channels ALTER COLUMN category DROP NOT NULL;`)
   .then(() => console.log('✅ channels.category теперь nullable'))
   .catch(e => console.error('channels.category migration error:', e));
 
-// ── Таблица pending_channel_ids — очередь уведомлений WebApp об автодобавлении ─
+// ── Таблица pending_channel_ids - очередь уведомлений WebApp об автодобавлении ─
 // Канал уже создаётся ботом напрямую в channels/user_admin в момент, когда его
-// добавляют администратором. Эта таблица — лёгкий сигнал «обнови список»,
+// добавляют администратором. Эта таблица - лёгкий сигнал «обнови список»,
 // который забирает поллинг на фронте.
 pool.query(`
   CREATE TABLE IF NOT EXISTS pending_channel_ids (
@@ -1003,13 +1003,13 @@ pool.query(`
 `).then(() => console.log('✅ pending_channel_ids готова'))
   .catch(e => console.error('pending_channel_ids init error:', e));
 
-// Автоочистка старых записей (старше 10 минут) — раз в 5 минут
+// Автоочистка старых записей (старше 10 минут) - раз в 5 минут
 setInterval(() => {
   pool.query(`DELETE FROM pending_channel_ids WHERE created_at < NOW() - INTERVAL '10 minutes'`)
     .catch(() => {});
 }, 5 * 60 * 1000);
 
-// ── GET /api/verify-channel/pending/:user_id — забирает ОДНУ запись из очереди ─
+// ── GET /api/verify-channel/pending/:user_id - забирает ОДНУ запись из очереди ─
 // Используется WebApp'ом для поллинга на странице «Управление каналами»:
 // как только бота добавили админом в канал, отсюда прилетает сигнал
 // с channel_id уже готового (сохранённого в БД) канала.
@@ -1042,7 +1042,7 @@ app.get('/api/verify-channel/pending/:user_id', requireTgAuth, async (req, res) 
 
 // ===== ANALYTICS =====
 
-// POST /api/analytics/track — записывает просмотр или клик
+// POST /api/analytics/track - записывает просмотр или клик
 app.post('/api/analytics/track', async (req, res) => {
   try {
     const { channel_id, event_type, viewer_id } = req.body;
@@ -1060,7 +1060,7 @@ app.post('/api/analytics/track', async (req, res) => {
   }
 });
 
-// GET /api/analytics/:channelId?user_id=... — статистика для владельца
+// GET /api/analytics/:channelId?user_id=... - статистика для владельца
 app.get('/api/analytics/:channelId', async (req, res) => {
   try {
     const { channelId } = req.params;

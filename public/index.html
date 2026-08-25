@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>AdsWay — Каталог каналов</title>
+  <title>AdsWay - Каталог каналов</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -48,15 +48,15 @@
       <!-- Stats -->
       <div class="stats-row">
         <div class="stat-card">
-          <div class="stat-num" id="statChannels">—</div>
+          <div class="stat-num" id="statChannels">-</div>
           <div class="stat-label">Каналов</div>
         </div>
         <div class="stat-card">
-          <div class="stat-num" id="statSubs">—</div>
+          <div class="stat-num" id="statSubs">-</div>
           <div class="stat-label">Подписчиков</div>
         </div>
         <div class="stat-card">
-          <div class="stat-num" id="statPremium">—</div>
+          <div class="stat-num" id="statPremium">-</div>
           <div class="stat-label">💎 Премиум каналов</div>
         </div>
       </div>
@@ -90,7 +90,7 @@
         <input class="search-input" id="searchInput" placeholder="Название, @username, тематика, валюта…" oninput="doSearch()">
       </div>
 
-      <!-- Сортировка — вертикально по одному -->
+      <!-- Сортировка - вертикально по одному -->
       <div class="filter-section-label">Сортировка</div>
       <div class="filter-col">
         <div class="filter-chip active" data-sort="default" onclick="setSort(this)">⚡ По умолчанию</div>
@@ -102,7 +102,7 @@
 
       <div class="filter-panel" id="filterPanel">
 
-        <!-- Категория — вертикально -->
+        <!-- Категория - вертикально -->
         <div class="filter-group">
           <div class="filter-label">Категория</div>
           <div class="filter-col" id="filterCats">
@@ -137,16 +137,16 @@
           </div>
         </div>
 
-        <!-- Валюта — вертикально -->
+        <!-- Валюта - вертикально -->
         <div class="filter-group">
           <div class="filter-label">Валюта оплаты</div>
           <div class="filter-col" id="filterCurrs">
             <div class="fcurr active" data-fcurr="all"   onclick="setFcurr(this)">⚡ Все валюты</div>
-            <div class="fcurr" data-fcurr="RUB"          onclick="setFcurr(this)">₽ RUB — Российский рубль</div>
-            <div class="fcurr" data-fcurr="KZT"          onclick="setFcurr(this)">₸ KZT — Казахстанский тенге</div>
-            <div class="fcurr" data-fcurr="TON"          onclick="setFcurr(this)">ꘜ TON — Toncoin</div>
-            <div class="fcurr" data-fcurr="USD"          onclick="setFcurr(this)">$ USD — Доллар США</div>
-            <div class="fcurr" data-fcurr="STARS"        onclick="setFcurr(this)">⭐️ Stars — Telegram Stars</div>
+            <div class="fcurr" data-fcurr="RUB"          onclick="setFcurr(this)">₽ RUB - Российский рубль</div>
+            <div class="fcurr" data-fcurr="KZT"          onclick="setFcurr(this)">₸ KZT - Казахстанский тенге</div>
+            <div class="fcurr" data-fcurr="TON"          onclick="setFcurr(this)">ꘜ TON - Toncoin</div>
+            <div class="fcurr" data-fcurr="USD"          onclick="setFcurr(this)">$ USD - Доллар США</div>
+            <div class="fcurr" data-fcurr="STARS"        onclick="setFcurr(this)">⭐️ Stars - Telegram Stars</div>
           </div>
         </div>
 
@@ -169,7 +169,7 @@
       <div class="auto-add-banner">
         <span class="auto-add-banner-icon">🤖</span>
         <span class="auto-add-banner-text">
-          <strong>Канал получим автоматически</strong> — просто добавь бота в канал как администратора.
+          <strong>Канал получим автоматически</strong> - просто добавь бота в канал как администратора.
           После добавления не забудь заполнить карточку канала.
         </span>
       </div>

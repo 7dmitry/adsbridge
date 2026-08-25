@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 BOT_TOKEN    = os.getenv("BOT_TOKEN")
+BOT_PAY      = os.getenv("BOT_PAY")
 WEBAPP_URL   = os.getenv("WEBAPP_URL")
 ADMIN_ID     = int(os.getenv("ADMIN_ID"))
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -98,7 +99,7 @@ def get_user_channels(user_id):
         return []
 
 def _chat_id(usname: str):
-    """Возвращает chat_id для Telegram API: числовой ID как int, публичный — '@username'."""
+    """Возвращает chat_id для Telegram API: числовой ID как int, публичный - '@username'."""
     s = usname.strip()
     if s.lstrip('-').isdigit():   # приватный: '-1001234567890' или '1001234567890'
         return int(s)
@@ -276,7 +277,7 @@ def get_user_data_text(owner_id: int):
     if not channels and not nets:
         return None
 
-    # Собираем все виды оплаты пользователя (primary + extras) — один раз
+    # Собираем все виды оплаты пользователя (primary + extras) - один раз
     pay_set = []
     if channels:
         primary = channels[0][7]   # cur
@@ -393,7 +394,7 @@ async def cmd_start(msg: types.Message, command: CommandStart):
     
     await msg.answer(
         f"👋 Привет, <b>{msg.from_user.first_name}</b>!\n\n"
-        "🚀 <b>AdsWay</b> — каталог Telegram-каналов для:\n"
+        "🚀 <b>AdsWay</b> - каталог Telegram-каналов для:\n"
         "• 📢 Покупки рекламы у проверенных авторов\n"
         "• 🤝 Взаимного пиара между каналами\n"
         "• 📊 Анализа аудитории и ER\n\n"
@@ -404,7 +405,7 @@ async def cmd_start(msg: types.Message, command: CommandStart):
         "💬Чат: @AdsWay_Community"
     )
 
-# ── /update_subs — ручное обновление (только для админа) ─────────────────────
+# ── /update_subs - ручное обновление (только для админа) ─────────────────────
 @dp.message(Command("update_subs"))
 async def cmd_update_subs(msg: types.Message):
     if msg.from_user.id != ADMIN_ID:
@@ -549,7 +550,7 @@ async def cmd_add_channel(msg: types.Message):
         avatar_url = None
         fallback_warn = (
             "\n⚠️ <i>Не удалось получить данные канала автоматически.\n"
-            "Подписчики и аватар не заполнены — обнови вручную позже.</i>"
+            "Подписчики и аватар не заполнены - обнови вручную позже.</i>"
         )
     else:
         fallback_warn = ""
@@ -598,10 +599,10 @@ async def cmd_add_channel(msg: types.Message):
 )
 async def on_bot_added_as_admin(event: ChatMemberUpdated):
     """
-    Как только бота добавляют в канал администратором — канал автоматически
+    Как только бота добавляют в канал администратором - канал автоматически
     регистрируется в каталоге (с пустыми ценой/категорией) и привязывается
     к пользователю, который его добавил. Разделения на публичный/приватный
-    больше нет — тип определяется автоматически по наличию @username.
+    больше нет - тип определяется автоматически по наличию @username.
     """
     if event.chat.type != 'channel':
         return
@@ -662,7 +663,7 @@ async def on_bot_added_as_admin(event: ChatMemberUpdated):
             await bot.send_message(
                 user_id,
                 f"✅ Канал <b>{name}</b> добавлен в AdsWay!\n\n"
-                f"Он уже появился в разделе «Мои каналы» — осталось заполнить "
+                f"Он уже появился в разделе «Мои каналы» - осталось заполнить "
                 f"карточку: категорию и цены на рекламу.",
             )
         else:

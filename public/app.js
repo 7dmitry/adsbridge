@@ -192,7 +192,7 @@ function getChannelPayCurrencies(ch) {
 // ── Отобразить цену (поддержка '-') ──────────────────────────────────────────
 function displayPrice(val, sym, suffix) {
   if (!val || val === '') return null;
-  if (val === '-') return `—/${suffix}`;
+  if (val === '-') return `-/${suffix}`;
   return `${val}${sym}/${suffix}`;
 }
 
@@ -201,7 +201,7 @@ function buildCard(ch) {
   const sym     = getCurrSymbol(ch.currency);
   const price24 = displayPrice(ch.price24, sym, '24ч');
   const priceAll= displayPrice(ch.priceAll, sym, '∞');
-  const priceStr = [price24, priceAll].filter(Boolean).join(' · ') || '—';
+  const priceStr = [price24, priceAll].filter(Boolean).join(' · ') || '-';
   return `
   <div class="ch-card" onclick="openModal(${ch.id})">
     <div class="ch-top">
@@ -448,7 +448,7 @@ function buildNetworkCard(net) {
 
   const fmtP = (v, label) => {
     if (!v) return null;
-    if (v === '-') return `<span class="tag" style="opacity:.55">${label}: —</span>`;
+    if (v === '-') return `<span class="tag" style="opacity:.55">${label}: -</span>`;
     return `<span class="tag">${label}: ${v}${sym}</span>`;
   };
 
@@ -528,9 +528,9 @@ function openNetworkModal(netId) {
   const sym       = getCurrSymbol(net.currency || 'RUB');
   const catName   = CAT_NAMES[net.category] || '';
 
-  const fmtP = (v) => (!v || v === '-') ? '—' : `${v}${sym}`;
+  const fmtP = (v) => (!v || v === '-') ? '-' : `${v}${sym}`;
 
-  // Проверяем — это чужая сетка (показываем кнопку контакта) или своя
+  // Проверяем - это чужая сетка (показываем кнопку контакта) или своя
   const currentUserId = tg?.initDataUnsafe?.user?.id;
   const isOwn = net.owner_id && String(net.owner_id) === String(currentUserId);
 
@@ -570,7 +570,7 @@ function openNetworkModal(netId) {
         ${channels.map(c => {
           const subs = parseInt(c.subscribers)||0;
           const cSym = getCurrSymbol(c.currency||'RUB');
-          const fmtC = (v) => (!v || v==='-') ? '—' : `${v}${cSym}`;
+          const fmtC = (v) => (!v || v==='-') ? '-' : `${v}${cSym}`;
           return `
           <div class="net-ch-row" onclick="closeNetworkModal();openModal(${c.id})">
             <div class="net-ch-avatar">
@@ -705,8 +705,8 @@ function openModal(id) {
   const sym = getCurrSymbol(ch.currency);
 
   const fmtP = (v) => {
-    if (!v || v === '') return '—';
-    if (v === '-') return '—';
+    if (!v || v === '') return '-';
+    if (v === '-') return '-';
     return `${v}${sym}`;
   };
 
@@ -812,7 +812,7 @@ async function loadMyChannelsList(userId) {
   if (!data || data.__error || data.length === 0) {
     list.innerHTML = emptyState(
       'Пока нет каналов',
-      'Добавь бота администратором в свой канал — он появится здесь автоматически'
+      'Добавь бота администратором в свой канал - он появится здесь автоматически'
     );
     return;
   }
@@ -821,10 +821,10 @@ async function loadMyChannelsList(userId) {
   list.innerHTML = data.map(ch => {
     const needsSetup = !ch.category;
     const prices = [
-      ch.pricead_24  ? `24ч: ${ch.pricead_24  === '-' ? '—' : ch.pricead_24  + sym}` : null,
-      ch.pricead_48  ? `48ч: ${ch.pricead_48  === '-' ? '—' : ch.pricead_48  + sym}` : null,
-      ch.pricead_72  ? `72ч: ${ch.pricead_72  === '-' ? '—' : ch.pricead_72  + sym}` : null,
-      ch.pricead_all ? `∞: ${ch.pricead_all  === '-' ? '—' : ch.pricead_all + sym}` : null,
+      ch.pricead_24  ? `24ч: ${ch.pricead_24  === '-' ? '-' : ch.pricead_24  + sym}` : null,
+      ch.pricead_48  ? `48ч: ${ch.pricead_48  === '-' ? '-' : ch.pricead_48  + sym}` : null,
+      ch.pricead_72  ? `72ч: ${ch.pricead_72  === '-' ? '-' : ch.pricead_72  + sym}` : null,
+      ch.pricead_all ? `∞: ${ch.pricead_all  === '-' ? '-' : ch.pricead_all + sym}` : null,
     ].filter(Boolean);
     return `
     <div class="manage-ch-item ${needsSetup ? 'manage-ch-item-pending' : ''}">
@@ -833,7 +833,7 @@ async function loadMyChannelsList(userId) {
           ${ch.name}
           ${needsSetup ? '<span class="tag orange" style="margin-left:6px">Заполните карточку</span>' : ''}
         </div>
-        <div class="manage-ch-meta">${fmtUsname(ch.usname)} · ${ch.category ? (CAT_NAMES[ch.category] || ch.category) : '— без категории —'} · ${fmt(ch.subscribers || 0)} подп.</div>
+        <div class="manage-ch-meta">${fmtUsname(ch.usname)} · ${ch.category ? (CAT_NAMES[ch.category] || ch.category) : '- без категории -'} · ${fmt(ch.subscribers || 0)} подп.</div>
         <div class="manage-ch-prices">
           ${prices.map(p => `<span class="tag">${p}</span>`).join('')}
           ${!needsSetup ? `<span class="tag" style="background:rgba(108,99,255,.1);color:var(--accent2)">${sym} ${userCurrencyPrimary || ch.currency || 'RUB'}</span>` : ''}
@@ -953,7 +953,7 @@ async function editChannel(id) {
     <div class="form-group">
       <label class="form-label">Категория *</label>
       <select class="form-input" id="fCategory">
-        <option value="">— Выберите —</option>
+        <option value="">- Выберите -</option>
         <option value="tech">🖥️ Технологии</option>
         <option value="business">💼 Бизнес</option>
         <option value="finance">📈 Финансы</option>
@@ -1108,7 +1108,7 @@ async function toggleCollab(channelId, el) {
   }
 }
 
-// ── SETTINGS — Валюта ─────────────────────────────────────────────────────────
+// ── SETTINGS - Валюта ─────────────────────────────────────────────────────────
 let _tempPrimary = 'RUB';
 let _tempExtras  = [];
 
@@ -1232,7 +1232,7 @@ async function saveCurrencySettings() {
   }
 }
 
-// ── SETTINGS — Сетки каналов ──────────────────────────────────────────────────
+// ── SETTINGS - Сетки каналов ──────────────────────────────────────────────────
 let _networks = [];
 let _editingNetworkId = null;
 
@@ -1270,10 +1270,10 @@ function renderNetworkSettingsUI() {
         : _networks.map(net => {
             const sym = getCurrSymbol(net.currency || 'RUB');
             const prices = [
-              net.pricead_24  && net.pricead_24  !== '-' ? `24ч: ${net.pricead_24}${sym}`  : net.pricead_24  === '-' ? '24ч: —' : null,
-              net.pricead_48  && net.pricead_48  !== '-' ? `48ч: ${net.pricead_48}${sym}`  : net.pricead_48  === '-' ? '48ч: —' : null,
-              net.pricead_72  && net.pricead_72  !== '-' ? `72ч: ${net.pricead_72}${sym}`  : net.pricead_72  === '-' ? '72ч: —' : null,
-              net.pricead_all && net.pricead_all !== '-' ? `∞: ${net.pricead_all}${sym}`   : net.pricead_all === '-' ? '∞: —'   : null,
+              net.pricead_24  && net.pricead_24  !== '-' ? `24ч: ${net.pricead_24}${sym}`  : net.pricead_24  === '-' ? '24ч: -' : null,
+              net.pricead_48  && net.pricead_48  !== '-' ? `48ч: ${net.pricead_48}${sym}`  : net.pricead_48  === '-' ? '48ч: -' : null,
+              net.pricead_72  && net.pricead_72  !== '-' ? `72ч: ${net.pricead_72}${sym}`  : net.pricead_72  === '-' ? '72ч: -' : null,
+              net.pricead_all && net.pricead_all !== '-' ? `∞: ${net.pricead_all}${sym}`   : net.pricead_all === '-' ? '∞: -'   : null,
             ].filter(Boolean);
             return `
             <div class="manage-ch-item" style="margin-bottom:10px">
@@ -1302,7 +1302,7 @@ function renderNetworkSettingsUI() {
 }
 
 // ── Редактор сетки ────────────────────────────────────────────────────────────
-// state: какие каналы выбраны (для новой сетки — pending, для существующей — live)
+// state: какие каналы выбраны (для новой сетки - pending, для существующей - live)
 let _netEditorChannels = []; // массив объектов channel из БД
 
 async function openNetworkEditor(netId) {
@@ -1312,7 +1312,7 @@ async function openNetworkEditor(netId) {
   _editingNetworkId = netId;
   const net = netId ? _networks.find(n => n.id === netId) : null;
 
-  // Сброс state публичности — инициализируем из текущей сетки
+  // Сброс state публичности - инициализируем из текущей сетки
   window._netEditorIsPublic = net?.is_public ?? false;
 
   // Загружаем каналы пользователя
@@ -1375,7 +1375,7 @@ function _renderNetworkEditorUI(net, myChannels) {
       <div class="form-group">
         <label class="form-label">Категория</label>
         <select class="form-input" id="netCategory">
-          <option value="">— Без категории —</option>
+          <option value="">- Без категории -</option>
           <option value="tech"          ${curCat==='tech'          ?'selected':''}>🖥️ Технологии</option>
           <option value="business"      ${curCat==='business'      ?'selected':''}>💼 Бизнес</option>
           <option value="finance"       ${curCat==='finance'       ?'selected':''}>📈 Финансы</option>
@@ -1631,7 +1631,7 @@ async function shareMyChannels() {
     const shareText = encodeURIComponent('Посмотри мои каналы и сетки в AdsWay 📢');
     tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${shareText}`);
   } else {
-    // Fallback — копируем в буфер
+    // Fallback - копируем в буфер
     try {
       await navigator.clipboard.writeText(link);
       showToast('🔗 Ссылка скопирована!', 'success');
@@ -1648,7 +1648,7 @@ async function initSettings() {
     ? (user.first_name + (user.last_name ? ' ' + user.last_name : ''))
     : 'Пользователь';
   document.getElementById('profileId').textContent = user
-    ? `ID: ${user.id} · @${user.username || '—'}`
+    ? `ID: ${user.id} · @${user.username || '-'}`
     : 'Открыто в браузере';
 
   Object.keys(settings).forEach(k => {
@@ -1755,7 +1755,7 @@ async function renderAnalyticsSettings() {
   const channels = await apiFetch(`/user/${userId}/channels`);
 
   if (!channels || channels.__error || channels.length === 0) {
-    block.innerHTML = '<div style="padding:12px;color:var(--text3);font-size:13px">Нет каналов — добавьте канал в каталог</div>';
+    block.innerHTML = '<div style="padding:12px;color:var(--text3);font-size:13px">Нет каналов - добавьте канал в каталог</div>';
     return;
   }
 

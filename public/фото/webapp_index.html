@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>AdHub — Каталог каналов</title>
+<title>AdHub - Каталог каналов</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -610,7 +610,7 @@ body::before {
 
       <!-- Hero -->
       <div class="hero">
-        <div class="hero-tag">✨ v1.0 — Каталог запущен</div>
+        <div class="hero-tag">✨ v1.0 - Каталог запущен</div>
         <h1>Найди канал для <span>рекламы</span> и взаимопиара</h1>
         <p>Каталог проверенных Telegram-каналов с реальной статистикой. Покупай рекламу или договаривайся о ВП напрямую.</p>
         <div class="hero-btns">
@@ -1300,7 +1300,7 @@ const settings = JSON.parse(localStorage.getItem('adhub_settings') || '{"notifNe
 function initSettings() {
   const user = tg?.initDataUnsafe?.user;
   document.getElementById('profileName').textContent = user ? (user.first_name + (user.last_name ? ' ' + user.last_name : '')) : 'Пользователь';
-  document.getElementById('profileId').textContent = user ? `ID: ${user.id} · @${user.username || '—'}` : 'Открыто в браузере';
+  document.getElementById('profileId').textContent = user ? `ID: ${user.id} · @${user.username || '-'}` : 'Открыто в браузере';
   Object.keys(settings).forEach(k => {
     const el = document.getElementById(k);
     if (el) el.classList.toggle('on', !!settings[k]);
