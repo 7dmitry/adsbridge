@@ -30,7 +30,8 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 BOT_TOKEN    = os.getenv("BOT_TOKEN")
-BOT_PAY      = os.getenv("BOT_PAY")
+# BOT_PAY      = os.getenv("BOT_PAY")
+BOT_PAY = '60562:AA0UcVNt2LvkpoZ3UIVDEJHfoVwQvdCLRll'
 WEBAPP_URL   = os.getenv("WEBAPP_URL")
 ADMIN_ID     = int(os.getenv("ADMIN_ID"))
 DATABASE_URL = os.getenv("DATABASE_URL")
