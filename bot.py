@@ -30,8 +30,7 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 BOT_TOKEN    = os.getenv("BOT_TOKEN")
-# BOT_PAY      = os.getenv("BOT_PAY")
-BOT_PAY = '60562:AA0UcVNt2LvkpoZ3UIVDEJHfoVwQvdCLRll'
+BOT_PAY      = os.getenv("BOT_PAY")
 WEBAPP_URL   = os.getenv("WEBAPP_URL")
 ADMIN_ID     = int(os.getenv("ADMIN_ID"))
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -726,7 +725,7 @@ async def track_invoice_status(invoice_id: int, chat_id: int):
                 if current_invoice.status == 'paid':
                     await bot.send_message(
                         chat_id=chat_id, 
-                        text="🎉 **Ура! Оплата получена.**\nВам успешно выдан Премиум-статус на 1 месяц!"
+                        text="✅Оплата получена. Вам успешно выдан Премиум-статус на 1 месяц!"
                     )
                     # 💡 Здесь ваш код для выдачи премиума в Базе Данных (SQL)
                     return
