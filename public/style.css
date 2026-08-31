@@ -1339,3 +1339,10 @@ a {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+.img-perk {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
