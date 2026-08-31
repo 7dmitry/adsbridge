@@ -572,15 +572,18 @@ async def main():
     logger.info(f"⏰ Планировщик запущен, интервал: каждые {interval_hours}ч")
 
     # ── Внутренний HTTP-сервер для server.js ─────────────────────────────────
+    # ВАЖНО: приватная сеть Railway работает по IPv6, поэтому слушаем '::'
+    # (IPv6-wildcard), а не '0.0.0.0' - иначе server.js не сможет достучаться
+    # по адресу вида *.railway.internal, даже если переменные окружения верны.
     bot_port = int(os.getenv("BOT_INTERNAL_PORT", 8081))
     http_app = web.Application()
     http_app.router.add_post('/internal/send-my-channels', _http_send_my_channels)
     http_app.router.add_post('/internal/buy-premium', _http_buy_premium)
     runner = web.AppRunner(http_app)
     await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', bot_port)
+    site = web.TCPSite(runner, '::', bot_port)
     await site.start()
-    logger.info(f"🌐 Внутренний HTTP-сервер запущен на порту {bot_port}")
+    logger.info(f"🌐 Внутренний HTTP-сервер запущен на порту {bot_port} (::)")
 
     logger.info("🚀 AdsBridge Bot запущен")
     try:
