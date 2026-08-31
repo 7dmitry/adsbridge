@@ -231,7 +231,8 @@ app.get('/api/channels', async (req, res) => {
     const result = await pool.query(
       `SELECT c.*,
               COALESCE(u.currency_primary, 'RUB') AS owner_currency_primary,
-              COALESCE(u.currency_extra,   '[]'::jsonb) AS owner_currency_extra
+              COALESCE(u.currency_extra,   '[]'::jsonb) AS owner_currency_extra,
+              COALESCE(u.is_premium, FALSE) AS owner_is_premium
        FROM channels c
        LEFT JOIN users u ON c.owner_id = u.id
        ${whereClause}
@@ -250,7 +251,8 @@ app.get('/api/channels/:id', async (req, res) => {
     const result = await pool.query(
       `SELECT c.*,
               COALESCE(u.currency_primary, 'RUB') AS owner_currency_primary,
-              COALESCE(u.currency_extra,   '[]'::jsonb) AS owner_currency_extra
+              COALESCE(u.currency_extra,   '[]'::jsonb) AS owner_currency_extra,
+              COALESCE(u.is_premium, FALSE) AS owner_is_premium
        FROM channels c
        LEFT JOIN users u ON c.owner_id = u.id
        WHERE c.id = $1`,
