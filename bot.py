@@ -529,6 +529,34 @@ async def _http_send_my_channels(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": str(e)}, status=500)
 
 
+async def _http_buy_premium(request: web.Request) -> web.Response:
+    """
+    POST /internal/buy-premium
+    Body: { "user_id": 123456, "period": "week" | "month" }
+    Запускает тот же счёт на оплату, что и команда /buy - вызывается кнопками
+    из раздела DONATE через server.js (в обход tg.sendData(), которая
+    работает только если Mini App открыт через reply-кнопку с web_app).
+    """
+    try:
+        data    = await request.json()
+        user_id = data.get("user_id")
+        if not user_id:
+            return web.json_response({"ok": False, "error": "Нет user_id"}, status=400)
+
+        period = str(data.get("period") or "month").strip().lower()
+        if period not in PREMIUM_PLANS:
+            period = "month"
+
+        uid = int(user_id)
+        # Счёт и его проверка создаются в фоне - отвечаем сразу, чтобы webapp не ждал
+        asyncio.create_task(start_premium_checkout(uid, uid, period))
+        return web.json_response({"ok": True})
+
+    except Exception as e:
+        logger.error(f"_http_buy_premium error: {e}")
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+
 # ── Запуск ────────────────────────────────────────────────────────────────────
 async def main():
     interval_hours = 8
@@ -547,6 +575,7 @@ async def main():
     bot_port = int(os.getenv("BOT_INTERNAL_PORT", 8081))
     http_app = web.Application()
     http_app.router.add_post('/internal/send-my-channels', _http_send_my_channels)
+    http_app.router.add_post('/internal/buy-premium', _http_buy_premium)
     runner = web.AppRunner(http_app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', bot_port)

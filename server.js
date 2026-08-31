@@ -949,6 +949,36 @@ app.post('/api/share-link', requireTgAuth, async (req, res) => {
   res.json({ ok: true, link });
 });
 
+// ===== PREMIUM (продвижение канала / DONATE) =====
+// Кнопки в webapp дергают этот эндпоинт вместо tg.sendData(), потому что
+// sendData() доставляет данные боту только если Mini App открыт через
+// reply-кнопку с web_app - а у нас каталог открывается иначе (меню/ссылка),
+// так что сообщение туда просто не долетало.
+app.post('/api/premium/checkout', requireTgAuth, async (req, res) => {
+  try {
+    const { user_id, duration } = req.body;
+    if (!user_id) return res.status(401).json({ error: 'Не авторизован' });
+
+    const period = ['week', 'month'].includes(duration) ? duration : 'month';
+    const botInternalUrl = process.env.BOT_INTERNAL_URL || 'http://127.0.0.1:8081';
+
+    const botRes = await fetch(`${botInternalUrl}/internal/buy-premium`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id, period }),
+    });
+
+    const botData = await botRes.json().catch(() => ({}));
+    if (!botRes.ok || !botData.ok) {
+      return res.status(502).json({ error: botData.error || 'Бот недоступен, попробуйте позже' });
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ===== COLLAB =====
 app.patch('/api/channels/:id/collab', requireTgAuth, async (req, res) => {
   try {

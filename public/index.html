@@ -256,11 +256,28 @@
     </div>
 
     <script>
-    // Функция отправки выбранного тарифа обратно в Telegram-бота
-    function buyPremium(duration) {
-      if (typeof tg !== 'undefined' && tg) {
-        tg.HapticFeedback?.impactOccurred('medium');
-        sendToBot({ action: 'buy_premium', duration: duration });
+    // Функция покупки тарифа продвижения - идёт через API сервера (а не tg.sendData,
+    // которая работает только когда Mini App открыт reply-кнопкой с web_app)
+    async function buyPremium(duration) {
+      const user = tg?.initDataUnsafe?.user;
+      if (!user?.id) {
+        showToast('⚠️ Откройте приложение через бота', 'error');
+        return;
+      }
+      if (tg) tg.HapticFeedback?.impactOccurred('medium');
+
+      const result = await apiFetch('/premium/checkout', {
+        method: 'POST',
+        body: JSON.stringify({ user_id: user.id, duration }),
+      });
+
+      if (result?.ok) {
+        showToast('💳 Счёт создан! Проверьте сообщения от бота', 'success');
+        if (tg) tg.HapticFeedback?.notificationOccurred('success');
+      } else {
+        const msg = result?.error || 'Не удалось создать счёт';
+        showToast(`❌ ${msg}`, 'error');
+        if (tg) tg.HapticFeedback?.notificationOccurred('error');
       }
     }
     </script>
