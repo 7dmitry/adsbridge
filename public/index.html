@@ -185,11 +185,86 @@
     </div>
 
     <!-- ════════ DONATE ════════ -->
+    <!-- Вкладка премиума/доната в HTML -->
     <div class="page" id="page-donate">
-      <h4>
-        Скоро здесь будет возможность поддержать проект донатом и получить 💎Премиум-статус для своих каналов...
-      </h4>
+      
+      <!-- Продающий баннер -->
+      <div class="premium-hero">
+        <div class="premium-hero-icon-wrap">
+          <!-- Путь к логотипу-звезде, загруженному вами в архиве -->
+          <img src="https://railway.app" class="premium-hero-icon" onerror="this.parentNode.innerHTML='💎'">
+        </div>
+        <h2 class="premium-title">AdsWay Premium</h2>
+        <p class="premium-subtitle">Заявите о своем канале на полную мощность и привлеките тысячи новых рекламодателей!</p>
+      </div>
+
+      <div class="section-title">✨ Преимущества подписки</div>
+      
+      <!-- Сетка преимуществ (использует ваши глобальные стили .perks, .perk-item, .perk-icon из CSS) -->
+      <div class="perks">
+        <div class="perk-item">
+          <div class="perk-icon purple">🔝</div>
+          <div class="perk-text">
+            <strong>Приоритетная выдача</strong>
+            <span>Ваши каналы закрепляются на главной странице каталога</span>
+          </div>
+        </div>
+        
+        <div class="perk-item">
+          <div class="perk-icon blue">⭐</div>
+          <div class="perk-text">
+            <strong>Эксклюзивный значок</strong>
+            <span>Уникальная метка VIP-пользователя рядом с именем</span>
+          </div>
+        </div>
+
+        <div class="perk-item">
+          <div class="perk-icon green">📂</div>
+          <div class="perk-text">
+            <strong>Премиум-вкладка</strong>
+            <span>Попадание ваших ресурсов в отдельный VIP-раздел поиска</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-title" style="margin-top: 20px;">💳 Выберите тарифный план</div>
+      
+      <!-- Кнопки выбора тарифов -->
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        
+        <!-- Тариф: 1 Неделя -->
+        <button class="premium-tariff-btn tariff-week" onclick="buyPremium('week')">
+          <div class="tariff-info">
+            <span class="tariff-name">1 Неделя продвижения</span>
+            <span class="tariff-desc">Отличный вариант для быстрого теста</span>
+          </div>
+          <div class="tariff-price purple">1.00 USDT</div>
+        </button>
+
+        <!-- Тариф: 1 Месяц -->
+        <button class="premium-tariff-btn tariff-month" onclick="buyPremium('month')">
+          <!-- Метка выгоды -->
+          <span class="tariff-badge-sale">🔥 Выгода 55%</span>
+          <div class="tariff-info">
+            <span class="tariff-name">1 Месяц продвижения</span>
+            <span class="tariff-desc">Максимальный буст просмотров</span>
+          </div>
+          <div class="tariff-price green">3.00 USDT</div>
+        </button>
+        
+      </div>
     </div>
+
+    <script>
+    // Функция отправки выбранного тарифа обратно в Telegram-бота
+    function buyPremium(duration) {
+      if (typeof tg !== 'undefined' && tg) {
+        tg.HapticFeedback?.impactOccurred('medium');
+        sendToBot({ action: 'buy_premium', duration: duration });
+      }
+    }
+    </script>
+
 
     <!-- ════════ SETTINGS ════════ -->
     <div class="page" id="page-settings">

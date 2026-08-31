@@ -1185,3 +1185,157 @@ a {
   font-weight: 800;
   color: var(--accent);
 }
+
+
+/* Главный продающий баннер */
+.premium-hero {
+  border-radius: var(--r); /* 14px */
+  overflow: hidden;
+  background: linear-gradient(135deg, #0a0a0f 0%, #17103a 50%, #291052 100%);
+  padding: 24px 20px 20px;
+  position: relative;
+  margin-bottom: 20px;
+  border: 1px solid rgba(108,99,255,0.25);
+  box-shadow: var(--glow); /* Свечение */
+  text-align: center;
+}
+
+.premium-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 30%, rgba(108,99,255,0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Контейнер иконки-звезды в баннере */
+.premium-hero-icon-wrap {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 12px;
+  background: rgba(108,99,255,0.1);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--glow2);
+  border: 1px solid rgba(108,99,255,0.2);
+}
+
+.premium-hero-icon {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+}
+
+/* Заголовок AdsWay Premium */
+.premium-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 24px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #ffffff 0%, var(--accent2) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.premium-subtitle {
+  font-size: 13px;
+  color: var(--text2); /* #9898b0 */
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+/* Кнопки-карточки выбора тарифов подписки */
+.premium-tariff-btn {
+  width: 100%;
+  text-align: left;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 14px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Тариф: 1 Неделя (Обычный) */
+.premium-tariff-btn.tariff-week {
+  background: linear-gradient(135deg, var(--card2), var(--bg3)); /* #1c1c26, #18181f */
+  border: 1.5px solid var(--border);
+}
+
+.premium-tariff-btn.tariff-week:active {
+  border-color: var(--border2);
+  transform: scale(0.98);
+}
+
+/* Тариф: 1 Месяц (Популярный / VIP) */
+.premium-tariff-btn.tariff-month {
+  background: linear-gradient(135deg, rgba(108,99,255,0.06), var(--card2));
+  border: 1.5px solid var(--accent); /* #6c63ff */
+  box-shadow: var(--glow);
+}
+
+.premium-tariff-btn.tariff-month:active {
+  box-shadow: 0 0 25px rgba(108,99,255,0.3);
+  transform: scale(0.98);
+}
+
+/* Текстовый блок внутри кнопки тарифа */
+.tariff-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tariff-name {
+  font-family: 'Syne', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text); /* #f0f0f8 */
+}
+
+.tariff-desc {
+  font-size: 12px;
+  color: var(--text3); /* #5a5a72 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.premium-tariff-btn.tariff-month .tariff-desc {
+  color: var(--accent3); /* #38bdf8 для акцента на VIP-тарифе */
+}
+
+/* Блок отображения цены */
+.tariff-price {
+  font-family: 'Syne', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.tariff-price.purple { color: var(--accent2); } /* #a78bfa */
+.tariff-price.green  { color: var(--green); }  /* #34d399 */
+
+/* Метка "Выгода 55%" на верхнем ребре кнопки */
+.tariff-badge-sale {
+  position: absolute;
+  top: 0;
+  right: 16px;
+  background: var(--green);
+  color: var(--bg); /* Темный текст на зеленом фоне */
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 0 0 6px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
