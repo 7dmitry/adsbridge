@@ -962,11 +962,21 @@ app.post('/api/premium/checkout', requireTgAuth, async (req, res) => {
     const period = ['week', 'month'].includes(duration) ? duration : 'month';
     const botInternalUrl = process.env.BOT_INTERNAL_URL || 'http://127.0.0.1:8081';
 
-    const botRes = await fetch(`${botInternalUrl}/internal/buy-premium`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id, period }),
-    });
+    let botRes;
+    try {
+      botRes = await fetch(`${botInternalUrl}/internal/buy-premium`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id, period }),
+      });
+    } catch (fetchErr) {
+      // undici прячет реальную причину в .cause (ECONNREFUSED/ENOTFOUND/таймаут и т.д.)
+      console.error(
+        `premium/checkout: не удалось достучаться до ${botInternalUrl} -`,
+        fetchErr.cause || fetchErr.message
+      );
+      return res.status(502).json({ error: 'Бот недоступен (нет связи по внутренней сети)' });
+    }
 
     const botData = await botRes.json().catch(() => ({}));
     if (!botRes.ok || !botData.ok) {
