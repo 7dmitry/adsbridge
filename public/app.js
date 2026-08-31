@@ -4,6 +4,7 @@
 // git commit -m "fix db connection"
 // git push
 //11.08.2026
+
 const tg = window.Telegram?.WebApp;
 if (tg) {
   tg.ready();
@@ -119,6 +120,7 @@ function mapChannel(ch) {
     owner_id:           ch.owner_id,
     currency:           ch.owner_currency_primary || ch.currency || 'RUB',
     ownerCurrencyExtra: extras,
+    premium:            !!ch.owner_is_premium,
   };
 }
 
@@ -218,6 +220,7 @@ function buildCard(ch) {
         </div>
         <div class="ch-username">${ch.username}</div>
         <div class="ch-tags">
+          ${ch.premium ? '<img src="./фото/star_transparent.webp" class="premium-star-badge" alt="Premium" title="Premium канал">' : ''}
           <span class="tag">${CAT_NAMES[ch.cat] || ch.cat}</span>
           ${ch.collab ? '<span class="tag green">🤝 ВП</span>' : ''}
         </div>
@@ -736,6 +739,7 @@ function openModal(id) {
           ${ch.name} ${ch.verified?'<span class="badge-verified">✓</span>':''}
         </div>
         <div style="color:var(--text3);font-size:13px;margin:3px 0">${ch.username}</div>
+        ${ch.premium ? '<img src="./фото/star_transparent.webp" class="premium-star-badge" alt="Premium" title="Premium канал">' : ''}
         <span class="tag">${CAT_NAMES[ch.cat]||ch.cat}</span>
         ${ch.collab?'<span class="tag green" style="margin-left:5px">🤝 ВП</span>':''}
       </div>

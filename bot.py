@@ -1,6 +1,6 @@
 from email import message
 import asyncio, logging, json, os, random
-from datetime import datetime
+from datetime import datetime, timedelta
 from html import escape as _html_escape
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
@@ -8,7 +8,7 @@ from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton, WebAppInfo,
     InlineKeyboardMarkup, InlineKeyboardButton,
 )
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandStart, CommandObject
 from aiogram.filters.chat_member_updated import ChatMemberUpdatedFilter, IS_NOT_MEMBER, ADMINISTRATOR
 from aiogram.types import ChatMemberUpdated
 from aiogram.fsm.context import FSMContext
@@ -49,6 +49,19 @@ db = psycopg2.connect(DATABASE_URL, sslmode='require')
 c = db.cursor()
 db.autocommit = True
 logger.info("БД подключена успешно")
+
+# ── Миграция: колонка с датой окончания премиум-статуса ──────────────────────
+try:
+    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_until TIMESTAMP")
+    logger.info("✅ Колонка premium_until проверена/добавлена")
+except Exception as e:
+    logger.warning(f"Не удалось добавить колонку premium_until: {e}")
+
+# ── Тарифы премиум-статуса (кнопки в разделе DONATE) ──────────────────────────
+PREMIUM_PLANS = {
+    "week":  {"label": "Неделя",  "amount": 1.0, "days": 7},
+    "month": {"label": "Месяц",   "amount": 3.0, "days": 30},
+}
 
 # ── Хранилище пользователей (в памяти) ───────────────────────────────────────
 users_db = {}
@@ -136,7 +149,46 @@ async def update_channel_subscribers(channel_id: int, usname: str):
         logger.info(f"✅ @{usname} обновлён")
     return subs
 
+def grant_premium(user_id: int, days: int, amount: float):
+    """Выдаёт/продлевает премиум-статус пользователю после успешной оплаты."""
+    try:
+        c.execute(
+            """
+            UPDATE users
+            SET is_premium     = TRUE,
+                premium_until  = GREATEST(COALESCE(premium_until, NOW()), NOW()) + (%s || ' days')::interval,
+                total_donated  = COALESCE(total_donated, 0) + %s
+            WHERE id = %s
+            """,
+            (days, amount, user_id),
+        )
+        logger.info(f"⭐ Пользователю {user_id} выдан/продлён премиум на {days} дн. (+{amount})")
+    except Exception as e:
+        logger.error(f"Ошибка выдачи премиума пользователю {user_id}: {e}")
+
+
+def expire_old_premium():
+    """Снимает премиум-статус у пользователей, у которых истёк срок."""
+    try:
+        c.execute(
+            """
+            UPDATE users
+            SET is_premium = FALSE
+            WHERE is_premium = TRUE
+              AND premium_until IS NOT NULL
+              AND premium_until < NOW()
+            """
+        )
+        if c.rowcount:
+            logger.info(f"⏰ Премиум-статус снят у {c.rowcount} пользователей (истёк срок)")
+    except Exception as e:
+        logger.error(f"Ошибка проверки истечения премиума: {e}")
+
+
 async def update_all_subscribers():
+    # ── Проверка истечения премиум-статуса (тот же интервал 8ч) ────────────────
+    expire_old_premium()
+
     logger.info("🔄 Запуск обновления подписчиков всех каналов...")
     try:
         c.execute("SELECT id, usname FROM channels")
@@ -426,24 +478,27 @@ async def cmd_up(message: types.Message):
     text = "Перейдите на <a href='https://t.me/user?id=$7935048582'>Google</a> для поиска."
     await message.answer(text, parse_mode=ParseMode.HTML)
     
-@router.message(F.web_app_data) # Фильтр ловит данные из Mini App
+@dp.message(F.web_app_data) # Фильтр ловит данные из Mini App
 async def handle_webapp_data(message: types.Message):
     raw_data = message.web_app_data.data
     user = message.from_user
-    username_str = f"@{user.username}" if user.username else "без username"
-
-    await bot.send_message(
-        1283231216,
-        f"🌐 <b>Пользователь открыл Web App!</b>\n\n"
-        f"👤 Имя: {user.first_name} {user.last_name or ''}\n"
-    )
 
     try:
         data = json.loads(raw_data)
-        name = data.get("name", "Неизвестно")
-        await message.answer(f"Привет, {name}! Данные из приложения получены.")
     except json.JSONDecodeError:
         await message.answer(f"Получен текст: {raw_data}")
+        return
+
+    action = data.get("action")
+
+    # ── Покупка премиум-статуса из раздела DONATE ───────────────────────────
+    if action == "buy_premium":
+        period = str(data.get("duration") or "month").strip().lower()
+        await start_premium_checkout(user.id, message.chat.id, period)
+        return
+
+    name = data.get("name", "Неизвестно")
+    await message.answer(f"Привет, {name}! Данные из приложения получены.")
       
 # ── Внутренний HTTP-сервер (для вызова из server.js) ─────────────────────────
 
@@ -678,60 +733,72 @@ async def on_bot_added_as_admin(event: ChatMemberUpdated):
         pass
 
 @dp.message(Command("buy"))
-async def cmd_buy(message: types.Message):
-    """Создание счета на оплату."""
-    chat_id = message.chat.id
-    await message.answer("⏳ Генерирую счет на оплату...")
+async def cmd_buy(message: types.Message, command: CommandObject):
+    """Создание счета на оплату. Поддерживает /buy week или /buy month."""
+    period = (command.args or "month").strip().lower()
+    if period not in PREMIUM_PLANS:
+        period = "month"
+    await start_premium_checkout(message.from_user.id, message.chat.id, period)
+
+
+async def start_premium_checkout(user_id: int, chat_id: int, period: str):
+    """Общая логика создания счёта на премиум-статус.
+    Используется и командой /buy, и кнопками из раздела DONATE в Mini App."""
+    plan = PREMIUM_PLANS.get(period, PREMIUM_PLANS["month"])
+    await bot.send_message(chat_id, "⏳ Генерирую счет на оплату...")
 
     try:
         # Создаем счет в Crypto Bot
         invoice = await crypto_pay.create_invoice(
-            asset='USDT', 
-            amount=1, 
-            description=f"Оплата Премиум-статуса для пользователя {chat_id}"
+            asset='USDT',
+            amount=plan["amount"],
+            description=f"Оплата Премиум-статуса ({plan['label']}) для пользователя {user_id}",
+            payload=json.dumps({"user_id": user_id, "period": period}),
         )
 
         # Создаем инлайн-кнопку, которая ведет на оплату в CryptoBot
         builder = InlineKeyboardBuilder()
-        builder.button(text="💳 Оплатить 1 USDT", url=invoice.bot_invoice_url)
-        
-        await message.answer(
+        builder.button(text=f"💳 Оплатить {plan['amount']:.2f} USDT", url=invoice.bot_invoice_url)
+
+        await bot.send_message(
+            chat_id,
             f"💰 Счет успешно создан!\n\n"
-            f"Сумма к оплате: 1 USDT\n"
+            f"Тариф: {plan['label']} продвижения\n"
+            f"Сумма к оплате: {plan['amount']:.2f} USDT\n"
             f"После оплаты премиум активируется автоматически.",
             reply_markup=builder.as_markup()
         )
 
         # Запускаем фоновую проверку конкретно этого счета
-        asyncio.create_task(track_invoice_status(invoice.invoice_id, chat_id))
+        asyncio.create_task(track_invoice_status(invoice.invoice_id, user_id, chat_id, period))
 
     except Exception as e:
         logging.error(f"Ошибка при создании счета: {e}")
-        await message.answer("❌ Произошла ошибка при формировании счета. Попробуйте позже.")
+        await bot.send_message(chat_id, "❌ Произошла ошибка при формировании счета. Попробуйте позже.")
 
 
-async def track_invoice_status(invoice_id: int, chat_id: int):
+async def track_invoice_status(invoice_id: int, user_id: int, chat_id: int, period: str):
     """Фоновый цикл проверки статуса оплаты счета."""
+    plan = PREMIUM_PLANS.get(period, PREMIUM_PLANS["month"])
     # Проверяем счет в течение 15 минут (30 итераций по 30 секунд)
     for _ in range(30):
         await asyncio.sleep(30)
         try:
             # Запрашиваем информацию о счете по его ID
             invoices = await crypto_pay.get_invoices(invoice_ids=invoice_id)
-            if invoices:
-                current_invoice = invoices # Получаем объект счета
-                
+            current_invoice = invoices[0] if isinstance(invoices, (list, tuple)) else invoices
+            if current_invoice:
                 # Если статус счета стал "paid" (оплачен)
                 if current_invoice.status == 'paid':
+                    grant_premium(user_id, plan["days"], plan["amount"])
                     await bot.send_message(
-                        chat_id=chat_id, 
-                        text="✅Оплата получена. Вам успешно выдан Премиум-статус на 1 месяц!"
+                        chat_id=chat_id,
+                        text=f"✅ Оплата получена. Вам успешно выдан Премиум-статус на {plan['label'].lower()}!"
                     )
-                    # 💡 Здесь ваш код для выдачи премиума в Базе Данных (SQL)
                     return
-                    
+
                 # Если счет отменен или истек срок его действия
-                elif current_invoice.status in ['expired', 'active' == False]:
+                elif current_invoice.status == 'expired':
                     return
         except Exception as e:
             logging.error(f"Ошибка проверки статуса счета {invoice_id}: {e}")
